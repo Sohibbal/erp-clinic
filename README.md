@@ -34,3 +34,21 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+
+Langkah selanjutnya yang bisa Anda lakukan:
+1. Masuk ke direktori project Anda jika belum:
+
+cd erp-clinic
+
+2. Buka file prisma.config.ts (jika menggunakan Prisma 6+) atau .env dan atur URL koneksi database Anda (misalnya PostgreSQL, MySQL, dll).
+
+npx prisma migrate dev --name init
+
+3. Setelah mendefinisikan model di prisma/schema.prisma, jalankan migrasi:
+
+npx prisma migrate dev --name init
+
+4. Jalankan server Next.js untuk memulai pengembangan:
+
+npm run dev
