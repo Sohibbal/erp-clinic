@@ -27,6 +27,14 @@ export default function DoctorWorkspace() {
   const [examNotes, setExamNotes] = useState('');
   const [diagnosis, setDiagnosis] = useState('');
 
+  // Clinical checklist state
+  const [checklist, setChecklist] = useState({
+    consent: false,
+    allergies: false,
+    vitals: false,
+    equipment: false,
+  });
+
   const selected = queue.find(q => q.patientId === selectedId);
   const selectedService = SERVICES.find(s => s.id === selected?.serviceId);
 
@@ -70,8 +78,14 @@ export default function DoctorWorkspace() {
     }));
   };
 
+  const allChecked = Object.values(checklist).every(Boolean);
+
   const handleComplete = () => {
     if (!selected) return;
+    if (!allChecked) {
+      toast.error('Please complete the pre-treatment checklist first before completing the session.');
+      return;
+    }
     setQueue(prev => prev.map(q => q.patientId === selectedId ? { ...q, status: 'done' as const } : q));
     toast.success(`Treatment for ${selected.patientName} completed! Sent to Pharmacy.`);
     setExamNotes('');
@@ -89,40 +103,10 @@ export default function DoctorWorkspace() {
   };
 
   return (
-    <div className="bg-background text-on-surface font-body-md min-h-screen">
-      {/* TopNavBar */}
-      <header className="bg-white/70 backdrop-blur-xl border-b border-outline-variant/30 fixed top-0 z-50 w-full shadow-[0_10px_30px_-15px_rgba(183,110,121,0.08)]">
-        <div className="flex justify-between items-center w-full px-margin h-16 max-w-container-max mx-auto">
-          <div className="flex items-center gap-8">
-            <span className="font-headline-md text-headline-md font-bold text-primary tracking-tight">Aura Beauty</span>
-            <nav className="hidden md:flex items-center gap-6">
-              <span className="text-primary font-semibold border-b-2 border-primary py-5 cursor-pointer">Dashboard</span>
-              <span className="text-on-surface-variant hover:text-primary transition-colors py-5 cursor-pointer">Patients</span>
-              <span className="text-on-surface-variant hover:text-primary transition-colors py-5 cursor-pointer">Treatments</span>
-            </nav>
-          </div>
-          <div className="flex items-center gap-4">
-            <button className="p-2 hover:bg-primary-container/40 rounded-lg transition-all">
-              <span className="material-symbols-outlined text-primary">settings</span>
-            </button>
-            <button className="p-2 hover:bg-primary-container/40 rounded-lg transition-all relative">
-              <span className="material-symbols-outlined text-primary">notifications</span>
-              <span className="absolute top-2 right-2 w-2 h-2 bg-secondary rounded-full"></span>
-            </button>
-            <div className="flex items-center gap-3 pl-4 border-l border-outline-variant/30">
-              <div className="text-right">
-                <p className="font-label-md text-label-md text-on-surface font-bold">Dr. Elena Vance</p>
-                <p className="font-body-sm text-body-sm text-on-surface-variant">Lead Clinician</p>
-              </div>
-              <div className="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center font-bold">EV</div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="pt-16 min-h-screen flex max-w-container-max mx-auto">
+    <>
+      <main className="flex-1 flex w-full max-w-container-max mx-auto">
         {/* Left Panel: Queue */}
-        <aside className="w-1/3 border-r border-outline-variant/30 bg-surface-container-low/50 overflow-y-auto h-[calc(100vh-64px)] p-margin">
+        <aside className="w-1/3 bg-surface-container-low/50 overflow-y-auto h-[calc(100vh-64px)] p-margin">
           <div className="mb-stack-lg">
             <div className="flex items-center justify-between mb-stack-md">
               <h2 className="font-headline-sm text-headline-sm text-primary">Today&apos;s Queue</h2>
@@ -137,7 +121,7 @@ export default function DoctorWorkspace() {
                   <div
                     key={item.patientId}
                     className={`p-4 rounded-xl transition-all cursor-pointer ${isSelected ? 'glass-card ambient-shadow border-l-4 border-primary' : item.status === 'done' ? 'bg-white/40 border border-outline-variant/20 opacity-60' : 'bg-white/40 border border-outline-variant/20 hover:bg-white/80'}`}
-                    onClick={() => { setSelectedId(item.patientId); setExamNotes(''); setDiagnosis(''); }}
+                    onClick={() => { setSelectedId(item.patientId); setExamNotes(''); setDiagnosis(''); setChecklist({ consent: false, allergies: false, vitals: false, equipment: false }); }}
                   >
                     <div className="flex justify-between items-start mb-3">
                       <div>
@@ -212,6 +196,44 @@ export default function DoctorWorkspace() {
               <div className="grid grid-cols-12 gap-gutter">
                 {/* Consultation Form */}
                 <div className="col-span-7 space-y-stack-lg">
+                  {/* Pre-Treatment Checklist */}
+                  <div className="p-6 bg-surface-container-low border border-outline-variant/30 rounded-2xl shadow-sm">
+                    <h4 className="font-label-md text-label-md uppercase text-outline flex items-center gap-2 mb-3">
+                      <span className="material-symbols-outlined text-[18px]">fact_check</span>
+                      Pre-Treatment Checklist
+                    </h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${checklist.consent ? 'bg-green-50/50 border-green-200' : 'bg-white border-outline-variant/30 hover:bg-surface-container-lowest'}`}>
+                        <input type="checkbox" className="mt-1 w-4 h-4 text-primary rounded focus:ring-primary/20" checked={checklist.consent} onChange={(e) => setChecklist(prev => ({ ...prev, consent: e.target.checked }))} />
+                        <div>
+                          <p className={`font-body-sm font-bold ${checklist.consent ? 'text-green-800' : 'text-on-surface'}`}>Informed Consent</p>
+                          <p className="text-[10px] text-on-surface-variant">Signed by patient</p>
+                        </div>
+                      </label>
+                      <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${checklist.allergies ? 'bg-green-50/50 border-green-200' : 'bg-white border-outline-variant/30 hover:bg-surface-container-lowest'}`}>
+                        <input type="checkbox" className="mt-1 w-4 h-4 text-primary rounded focus:ring-primary/20" checked={checklist.allergies} onChange={(e) => setChecklist(prev => ({ ...prev, allergies: e.target.checked }))} />
+                        <div>
+                          <p className={`font-body-sm font-bold ${checklist.allergies ? 'text-green-800' : 'text-on-surface'}`}>Allergy Check</p>
+                          <p className="text-[10px] text-on-surface-variant">Medical history reviewed</p>
+                        </div>
+                      </label>
+                      <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${checklist.vitals ? 'bg-green-50/50 border-green-200' : 'bg-white border-outline-variant/30 hover:bg-surface-container-lowest'}`}>
+                        <input type="checkbox" className="mt-1 w-4 h-4 text-primary rounded focus:ring-primary/20" checked={checklist.vitals} onChange={(e) => setChecklist(prev => ({ ...prev, vitals: e.target.checked }))} />
+                        <div>
+                          <p className={`font-body-sm font-bold ${checklist.vitals ? 'text-green-800' : 'text-on-surface'}`}>Vitals Normal</p>
+                          <p className="text-[10px] text-on-surface-variant">BP and HR within limits</p>
+                        </div>
+                      </label>
+                      <label className={`flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all ${checklist.equipment ? 'bg-green-50/50 border-green-200' : 'bg-white border-outline-variant/30 hover:bg-surface-container-lowest'}`}>
+                        <input type="checkbox" className="mt-1 w-4 h-4 text-primary rounded focus:ring-primary/20" checked={checklist.equipment} onChange={(e) => setChecklist(prev => ({ ...prev, equipment: e.target.checked }))} />
+                        <div>
+                          <p className={`font-body-sm font-bold ${checklist.equipment ? 'text-green-800' : 'text-on-surface'}`}>Equipment Ready</p>
+                          <p className="text-[10px] text-on-surface-variant">Sterilized and prepared</p>
+                        </div>
+                      </label>
+                    </div>
+                  </div>
+
                   <div className="space-y-stack-md">
                     <label className="font-label-md text-label-md text-on-surface-variant uppercase">Examination Notes</label>
                     <textarea className="w-full min-h-[160px] bg-surface-container-low border border-outline-variant/30 rounded-xl p-4 font-body-md focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all shadow-inner" placeholder="Enter clinical observations, skin condition details..." value={examNotes} onChange={(e) => setExamNotes(e.target.value)}></textarea>
@@ -298,6 +320,6 @@ export default function DoctorWorkspace() {
       <button className="fixed bottom-8 right-8 w-14 h-14 bg-secondary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform active:scale-95" onClick={() => toast.info('Quick Notes — coming soon.')}>
         <span className="material-symbols-outlined text-[28px]">edit_note</span>
       </button>
-    </div>
+    </>
   );
 }

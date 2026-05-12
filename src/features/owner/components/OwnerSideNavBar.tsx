@@ -7,7 +7,7 @@ export function OwnerSideNavBar() {
   const pathname = usePathname();
 
   return (
-    <aside className="fixed left-0 top-0 flex flex-col h-screen py-stack-lg border-r bg-white/80 dark:bg-surface-container-low/80 backdrop-blur-2xl border-outline-variant/30 w-64 z-50">
+    <aside className="fixed left-0 top-0 flex flex-col h-screen py-stack-lg bg-white/80 dark:bg-surface-container-low/80 backdrop-blur-2xl w-64 z-50">
       <div className="px-6 mb-10">
         <div className="flex items-center gap-3 mb-2">
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">

@@ -14,7 +14,7 @@ export function SideNavBar() {
   ];
 
   return (
-    <aside className="fixed left-0 top-0 flex flex-col h-screen py-stack-lg border-r bg-white/80 dark:bg-surface-container-low/80 backdrop-blur-2xl w-64 z-50">
+    <aside className="fixed left-0 top-0 flex flex-col h-screen py-stack-lg bg-white/80 dark:bg-surface-container-low/80 backdrop-blur-2xl w-64 z-50">
       <div className="px-margin mb-stack-lg">
         <h1 className="font-headline-sm text-headline-sm font-bold text-primary">Aura ERP</h1>
         <p className="font-body-sm text-body-sm text-on-surface-variant">Clinical Management</p>
