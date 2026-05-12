@@ -30,19 +30,39 @@ export function OwnerSideNavBar() {
           <span className="material-symbols-outlined">dashboard</span>
           <span className="font-label-md text-label-md">Analytics Dashboard</span>
         </Link>
-        <Link href="#" className="text-on-surface-variant mx-2 my-1 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all duration-200">
+        <Link 
+          href="/owner/revenue" 
+          className={pathname === '/owner/revenue' 
+            ? "bg-primary-container text-on-primary-container rounded-xl mx-2 my-1 px-4 py-3 flex items-center gap-3 transition-all duration-200"
+            : "text-on-surface-variant mx-2 my-1 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all duration-200"}
+        >
           <span className="material-symbols-outlined">payments</span>
           <span className="font-label-md text-label-md">Revenue</span>
         </Link>
-        <Link href="#" className="text-on-surface-variant mx-2 my-1 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all duration-200">
+        <Link 
+          href="/owner/employees" 
+          className={pathname === '/owner/employees' 
+            ? "bg-primary-container text-on-primary-container rounded-xl mx-2 my-1 px-4 py-3 flex items-center gap-3 transition-all duration-200"
+            : "text-on-surface-variant mx-2 my-1 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all duration-200"}
+        >
           <span className="material-symbols-outlined">badge</span>
           <span className="font-label-md text-label-md">Employee Management</span>
         </Link>
-        <Link href="#" className="text-on-surface-variant mx-2 my-1 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all duration-200">
+        <Link 
+          href="/owner/services" 
+          className={pathname === '/owner/services' 
+            ? "bg-primary-container text-on-primary-container rounded-xl mx-2 my-1 px-4 py-3 flex items-center gap-3 transition-all duration-200"
+            : "text-on-surface-variant mx-2 my-1 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all duration-200"}
+        >
           <span className="material-symbols-outlined">account_tree</span>
           <span className="font-label-md text-label-md">Service-Product Mapping</span>
         </Link>
-        <Link href="#" className="text-on-surface-variant mx-2 my-1 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all duration-200">
+        <Link 
+          href="/owner/settings" 
+          className={pathname === '/owner/settings' 
+            ? "bg-primary-container text-on-primary-container rounded-xl mx-2 my-1 px-4 py-3 flex items-center gap-3 transition-all duration-200"
+            : "text-on-surface-variant mx-2 my-1 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all duration-200"}
+        >
           <span className="material-symbols-outlined">settings</span>
           <span className="font-label-md text-label-md">Settings</span>
         </Link>
