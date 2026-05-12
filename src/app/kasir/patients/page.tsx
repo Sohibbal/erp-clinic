@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { PATIENTS, type Patient } from '../../../../lib/mock-data';
+import { PATIENTS, type Patient } from '../../../lib/mock-data';
 
 export default function PatientsPage() {
   const [patients, setPatients] = useState<Patient[]>(PATIENTS);

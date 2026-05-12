@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { INITIAL_QUEUE, CHECKOUT_ITEMS, type QueueItem, type CheckoutItem, formatCurrency } from '../../../lib/mock-data';
+import { INITIAL_QUEUE, CHECKOUT_ITEMS, type QueueItem, type CheckoutItem, formatCurrency } from '../../lib/mock-data';
 
 export default function KasirDashboard() {
   const router = useRouter();

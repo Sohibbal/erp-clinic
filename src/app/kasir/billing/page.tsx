@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { TRANSACTIONS, type Transaction, formatCurrency } from '../../../../lib/mock-data';
+import { TRANSACTIONS, type Transaction, formatCurrency } from '../../../lib/mock-data';
 
 export default function BillingPage() {
   const [transactions, setTransactions] = useState<Transaction[]>(TRANSACTIONS);
