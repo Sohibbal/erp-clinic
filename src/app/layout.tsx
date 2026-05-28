@@ -14,8 +14,8 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Aura Beauty ERP | Clinic Management Software",
-  description: "Enterprise Grade ERP for Clinic Management",
+  title: "Sunrise — Healthy Skin & Anti Aging | Sistem Manajemen Klinik",
+  description: "Sistem ERP Manajemen Klinik Kecantikan Sunrise",
 };
 
 export default function RootLayout({
@@ -24,7 +24,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${montserrat.variable} ${inter.variable} light h-full antialiased`}>
+    <html lang="id" className={`${montserrat.variable} ${inter.variable} light h-full antialiased`}>
       <head>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
       </head>

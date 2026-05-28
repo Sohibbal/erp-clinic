@@ -6,12 +6,11 @@
 // --- Auth ---
 export const DUMMY_CREDENTIALS = [
   { email: 'kasir@aura.com', password: 'aura123', role: 'kasir' as const },
-  { email: 'dokter@aura.com', password: 'aura123', role: 'dokter' as const },
   { email: 'apoteker@aura.com', password: 'aura123', role: 'apoteker' as const },
   { email: 'owner@aura.com', password: 'aura123', role: 'owner' as const },
 ];
 
-export type Role = 'kasir' | 'dokter' | 'apoteker' | 'owner';
+export type Role = 'kasir' | 'apoteker' | 'owner';
 
 // --- Patients ---
 export interface MedicalRecord {
@@ -22,7 +21,6 @@ export interface MedicalRecord {
 }
 
 export interface Patient {
-  id: string;
   name: string;
   initials: string;
   age: number;
@@ -35,49 +33,59 @@ export interface Patient {
   lastVisitDate: string;
   lastVisitTreatment: string;
   medicalHistory: MedicalRecord[];
+  medicalHistory: MedicalRecord[];
+  noRM: string;
+  nik?: string;
+  namaWali?: string;
+  pekerjaan?: string;
 }
 
 export const PATIENTS: Patient[] = [
   {
-    id: 'PT-8829', name: 'Sophia Montgomery', initials: 'SM', age: 24, gender: 'Female',
+    name: 'Sophia Montgomery', initials: 'SM', age: 24, gender: 'Female',
     phone: '+62 812-3456-7890', dob: '15 May 1999', allergies: 'Salicylic Acid',
     registeredDate: 'Jan 2023', status: 'Returning', lastVisitDate: 'Oct 12, 2023',
     lastVisitTreatment: 'Facial Acne Treatment',
+    noRM: 'RM-0001', nik: '3271041505990001',
     medicalHistory: [
       { date: 'Oct 12, 2023', doctor: 'Dr. Elena', treatment: 'Facial Acne Treatment', notes: 'Patient showed improvement. Continued use of Night Cream recommended.' },
       { date: 'Sep 01, 2023', doctor: 'Dr. Elena', treatment: 'Initial Consultation', notes: 'Diagnosed with mild acne. Prescribed basic skincare set.' },
     ],
   },
   {
-    id: 'PT-9012', name: 'Robert Jenkins', initials: 'RJ', age: 31, gender: 'Male',
+    name: 'Robert Jenkins', initials: 'RJ', age: 31, gender: 'Male',
     phone: '+62 811-2233-4455', dob: '08 Mar 1992', allergies: 'None',
     registeredDate: 'Mar 2023', status: 'Returning', lastVisitDate: 'Sep 05, 2023',
     lastVisitTreatment: 'Chemical Peel',
+    noRM: 'RM-0002', nik: '3271040803920002',
     medicalHistory: [
       { date: 'Sep 05, 2023', doctor: 'Dr. James', treatment: 'Chemical Peel', notes: 'Standard glycolic peel applied. No adverse reactions.' },
     ],
   },
   {
-    id: 'PT-9941', name: 'Elena Lockwood', initials: 'EL', age: 29, gender: 'Female',
+    name: 'Elena Lockwood', initials: 'EL', age: 29, gender: 'Female',
     phone: '+62 855-6677-8899', dob: '22 Nov 1994', allergies: 'Retinol',
     registeredDate: 'Nov 2023', status: 'New Patient', lastVisitDate: 'New',
     lastVisitTreatment: '-',
+    noRM: 'RM-0003', nik: '3271042211940003',
     medicalHistory: [],
   },
   {
-    id: 'PT-7741', name: 'Aria Sterling', initials: 'AS', age: 27, gender: 'Female',
+    name: 'Aria Sterling', initials: 'AS', age: 27, gender: 'Female',
     phone: '+62 878-1122-3344', dob: '14 Jul 1996', allergies: 'None',
     registeredDate: 'Feb 2023', status: 'Returning', lastVisitDate: 'Oct 10, 2023',
     lastVisitTreatment: 'Botox Consultation',
+    noRM: 'RM-0004', nik: '3271041407960004',
     medicalHistory: [
       { date: 'Oct 10, 2023', doctor: 'Dr. Elena', treatment: 'Botox Consultation', notes: 'Discussed forehead and glabella injection. Scheduled for next week.' },
     ],
   },
   {
-    id: 'PT-6623', name: 'Julian Rivers', initials: 'JR', age: 31, gender: 'Male',
+    name: 'Julian Rivers', initials: 'JR', age: 31, gender: 'Male',
     phone: '+62 812-9988-7766', dob: '03 Jan 1992', allergies: 'Lidocaine',
     registeredDate: 'Jun 2023', status: 'Returning', lastVisitDate: 'Sep 28, 2023',
     lastVisitTreatment: 'Laser Hair Removal',
+    noRM: 'RM-0005', nik: '3271040301920005',
     medicalHistory: [
       { date: 'Sep 28, 2023', doctor: 'Dr. James', treatment: 'Laser Hair Removal', notes: 'Session 3 of 6 completed. Skin response is normal.' },
     ],
@@ -88,7 +96,7 @@ export const PATIENTS: Patient[] = [
 export type QueueStatus = 'done' | 'in-room' | 'waiting';
 
 export interface QueueItem {
-  patientId: string;
+  patientNoRM: string;
   patientName: string;
   initials: string;
   service: string;
@@ -97,9 +105,9 @@ export interface QueueItem {
 }
 
 export const INITIAL_QUEUE: QueueItem[] = [
-  { patientId: 'PT-8829', patientName: 'Sophia Montgomery', initials: 'SM', service: 'Facial Acne Treatment', status: 'done', estimatedTime: '' },
-  { patientId: 'PT-9012', patientName: 'Robert Jenkins', initials: 'RJ', service: 'Chemical Peel', status: 'in-room', estimatedTime: 'Est. 15 min' },
-  { patientId: 'PT-9941', patientName: 'Elena Lockwood', initials: 'EL', service: 'Botox Consultation', status: 'waiting', estimatedTime: '32 min wait' },
+  { patientNoRM: 'RM-0001', patientName: 'Sophia Montgomery', initials: 'SM', service: 'Facial Acne Treatment', status: 'done', estimatedTime: '' },
+  { patientNoRM: 'RM-0002', patientName: 'Robert Jenkins', initials: 'RJ', service: 'Chemical Peel', status: 'in-room', estimatedTime: 'Est. 15 min' },
+  { patientNoRM: 'RM-0003', patientName: 'Elena Lockwood', initials: 'EL', service: 'Botox Consultation', status: 'waiting', estimatedTime: '32 min wait' },
 ];
 
 // --- Products / Inventory ---
@@ -142,12 +150,18 @@ export interface Service {
   id: string;
   name: string;
   price: number;
+  promo?: {
+    active: boolean;
+    discountType: 'percentage' | 'fixed';
+    discountValue: number;
+  };
   linkedProducts: ServiceProduct[];
 }
 
 export const SERVICES: Service[] = [
   {
     id: 'S001', name: 'Facial Acne Treatment', price: 120000,
+    promo: { active: true, discountType: 'percentage', discountValue: 15 },
     linkedProducts: [
       { productId: 'P006', name: 'Cream Acne Night', description: '15gr • Daily Use', defaultQty: 1, checked: true },
       { productId: 'P007', name: 'Toner Acne pH 5.5', description: '100ml • Purifying', defaultQty: 1, checked: true },
@@ -157,6 +171,7 @@ export const SERVICES: Service[] = [
   },
   {
     id: 'S002', name: 'Chemical Peel', price: 350000,
+    promo: { active: false, discountType: 'fixed', discountValue: 50000 },
     linkedProducts: [
       { productId: 'P003', name: 'Salicylic Acid 2% Serum', description: '20ml • Prep', defaultQty: 1, checked: true },
       { productId: 'P002', name: 'Purifying Facial Toner', description: '100ml • Aftercare', defaultQty: 1, checked: true },
@@ -172,7 +187,7 @@ export const SERVICES: Service[] = [
 ];
 
 // --- Transactions ---
-export type PaymentMethod = 'QRIS' | 'Credit Card' | 'Transfer' | 'Cash';
+export type PaymentMethod = 'QRIS' | 'Transfer' | 'Cash';
 export type TransactionStatus = 'Paid' | 'Pending';
 
 export interface Transaction {
@@ -180,6 +195,7 @@ export interface Transaction {
   invoiceId: string;
   patientName: string;
   service: string;
+  products?: { name: string; qty: number; price: number }[];
   amount: number;
   method: PaymentMethod | null;
   methodIcon: string;
@@ -190,7 +206,7 @@ export interface Transaction {
 
 export const TRANSACTIONS: Transaction[] = [
   { id: 'T001', invoiceId: '#INV-20240412-024', patientName: 'Sophia Montgomery', service: 'Facial Acne Treatment', amount: 242000, method: 'QRIS', methodIcon: 'qr_code_2', status: 'Paid', time: '14:30 PM', date: 'today' },
-  { id: 'T002', invoiceId: '#INV-20240412-023', patientName: 'Robert Jenkins', service: 'Chemical Peel', amount: 1550000, method: 'Credit Card', methodIcon: 'credit_card', status: 'Paid', time: '13:15 PM', date: 'today' },
+  { id: 'T002', invoiceId: '#INV-20240412-023', patientName: 'Robert Jenkins', service: 'Chemical Peel', amount: 1550000, method: 'Transfer', methodIcon: 'account_balance', status: 'Paid', time: '13:15 PM', date: 'today' },
   { id: 'T003', invoiceId: '#INV-20240412-025', patientName: 'Elena Lockwood', service: 'Botox Consultation', amount: 450000, method: null, methodIcon: '', status: 'Pending', time: '15:00 PM', date: 'today' },
   { id: 'T004', invoiceId: '#INV-20240411-021', patientName: 'Aria Sterling', service: 'Laser Hair Removal', amount: 1200000, method: 'Transfer', methodIcon: 'account_balance', status: 'Paid', time: '10:00 AM', date: 'yesterday' },
   { id: 'T005', invoiceId: '#INV-20240411-020', patientName: 'Julian Rivers', service: 'Facial Acne Treatment', amount: 340000, method: 'Cash', methodIcon: 'payments', status: 'Paid', time: '09:30 AM', date: 'yesterday' },
@@ -250,16 +266,16 @@ export interface CheckoutItem {
 }
 
 export const CHECKOUT_ITEMS: Record<string, CheckoutItem[]> = {
-  'PT-8829': [
+  'RM-0001': [
     { name: 'Facial Acne Deep Cleanse', type: 'Clinical Service', qty: 1, price: 120000 },
     { name: 'Aura Hydrating Cream', type: 'Product (50ml)', qty: 2, price: 45000 },
     { name: 'Skin Refresh Toner', type: 'Product (100ml)', qty: 1, price: 32000 },
   ],
-  'PT-9012': [
+  'RM-0002': [
     { name: 'Chemical Peel Session', type: 'Clinical Service', qty: 1, price: 350000 },
     { name: 'Post-Peel Soothing Cream', type: 'Product (30ml)', qty: 1, price: 85000 },
   ],
-  'PT-9941': [
+  'RM-0003': [
     { name: 'Botox Consultation', type: 'Clinical Service', qty: 1, price: 500000 },
   ],
 };

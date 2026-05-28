@@ -1,23 +1,114 @@
 'use client';
 
 import { useState } from 'react';
-import { SERVICES, PRODUCTS, type Service } from '../../../lib/mock-data';
+import { toast } from 'sonner';
+import { SERVICES, PRODUCTS, type Service, formatCurrency } from '../../../lib/mock-data';
 
 export default function OwnerServicesPage() {
-  const [selectedId, setSelectedId] = useState<string>('S001');
+  const [services, setServices] = useState<Service[]>(SERVICES);
+  const [selectedId, setSelectedId] = useState<string | null>('S001');
   const [search, setSearch] = useState('');
 
-  const selected = SERVICES.find(s => s.id === selectedId);
+  // CRUD State
+  const [showModal, setShowModal] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formData, setFormData] = useState<{
+    name: string;
+    price: string;
+    promoActive: boolean;
+    promoType: 'percentage' | 'fixed';
+    promoValue: string;
+  }>({
+    name: '',
+    price: '',
+    promoActive: false,
+    promoType: 'percentage',
+    promoValue: '',
+  });
 
-  const filtered = SERVICES.filter(s =>
+  const selected = services.find(s => s.id === selectedId);
+
+  const filtered = services.filter(s =>
     s.name.toLowerCase().includes(search.toLowerCase()) ||
     s.id.toLowerCase().includes(search.toLowerCase())
   );
 
-  // Resolve product stock info from the master PRODUCTS list
   const getProductStock = (productName: string) => {
     const prod = PRODUCTS.find(p => p.name === productName);
     return prod ? { stock: prod.stock, status: prod.status } : { stock: -1, status: 'Unknown' };
+  };
+
+  const calculateFinalPrice = (service: Service) => {
+    if (!service.promo?.active) return service.price;
+    if (service.promo.discountType === 'percentage') {
+      return service.price - (service.price * (service.promo.discountValue / 100));
+    }
+    return Math.max(0, service.price - service.promo.discountValue);
+  };
+
+  const openAddModal = () => {
+    setEditingId(null);
+    setFormData({ name: '', price: '', promoActive: false, promoType: 'percentage', promoValue: '' });
+    setShowModal(true);
+  };
+
+  const openEditModal = (service: Service) => {
+    setEditingId(service.id);
+    setFormData({
+      name: service.name,
+      price: service.price.toString(),
+      promoActive: service.promo?.active ?? false,
+      promoType: service.promo?.discountType ?? 'percentage',
+      promoValue: (service.promo?.discountValue ?? '').toString(),
+    });
+    setShowModal(true);
+  };
+
+  const handleSave = () => {
+    if (!formData.name || !formData.price) {
+      toast.error('Nama layanan dan harga dasar wajib diisi.');
+      return;
+    }
+
+    const priceNum = Number(formData.price) || 0;
+    const promoValNum = Number(formData.promoValue) || 0;
+
+    const promoData = {
+      active: formData.promoActive,
+      discountType: formData.promoType,
+      discountValue: promoValNum,
+    };
+
+    if (editingId) {
+      setServices(prev => prev.map(s => s.id === editingId ? {
+        ...s,
+        name: formData.name,
+        price: priceNum,
+        promo: promoData
+      } : s));
+      toast.success('Layanan berhasil diperbarui!');
+    } else {
+      const newId = `S${String(services.length + 1).padStart(3, '0')}`;
+      const newService: Service = {
+        id: newId,
+        name: formData.name,
+        price: priceNum,
+        promo: promoData,
+        linkedProducts: [],
+      };
+      setServices(prev => [...prev, newService]);
+      setSelectedId(newId);
+      toast.success('Layanan baru berhasil ditambahkan!');
+    }
+    setShowModal(false);
+  };
+
+  const handleDelete = (id: string) => {
+    if (confirm('Yakin ingin menghapus layanan ini? Seluruh pemetaan produk akan ikut terhapus.')) {
+      setServices(prev => prev.filter(s => s.id !== id));
+      if (selectedId === id) setSelectedId(null);
+      toast.success('Layanan berhasil dihapus.');
+    }
   };
 
   return (
@@ -27,31 +118,28 @@ export default function OwnerServicesPage() {
         <div>
           <h2 className="font-headline-lg text-headline-lg text-primary flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-[32px]">account_tree</span>
-            Service–Product Mapping
+            Manajemen Layanan
           </h2>
-          <p className="font-body-md text-on-surface-variant mt-1">Define which inventory items are consumed when a clinical service is performed.</p>
+          <p className="font-body-md text-on-surface-variant mt-1">Kelola katalog layanan, promo khusus, dan pemetaan inventaris.</p>
         </div>
-        <div className="relative">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
-          <input
-            type="text"
-            placeholder="Search services..."
-            className="pl-10 pr-4 py-2.5 bg-white border border-outline-variant/60 rounded-xl text-body-sm w-72 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
-      </div>
-
-      {/* Info Banner */}
-      <div className="bg-primary-container/10 border border-primary-container/30 rounded-2xl p-5 flex items-start gap-4">
-        <span className="material-symbols-outlined text-primary text-[24px] mt-0.5">lightbulb</span>
-        <div>
-          <p className="font-body-md font-bold text-on-surface mb-1">How Service–Product Mapping Works</p>
-          <p className="text-body-sm text-on-surface-variant leading-relaxed">
-            Each clinical service is linked to specific products from the inventory. When a doctor completes a treatment and sends it to the pharmacy,
-            the system automatically deducts the mapped products from stock. This page lets you review and understand these relationships.
-          </p>
+        <div className="flex flex-col sm:flex-row items-center gap-3">
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+            <input
+              type="text"
+              placeholder="Cari layanan..."
+              className="pl-10 pr-4 py-2.5 bg-white border border-outline-variant/60 rounded-xl text-body-sm w-64 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <button 
+            className="bg-primary text-white px-4 py-2.5 rounded-xl font-label-md flex items-center gap-2 hover:bg-primary/90 shadow-md active:scale-95 transition-all w-full sm:w-auto justify-center"
+            onClick={openAddModal}
+          >
+            <span className="material-symbols-outlined text-[18px]">add_box</span>
+            Tambah Layanan
+          </button>
         </div>
       </div>
 
@@ -60,6 +148,9 @@ export default function OwnerServicesPage() {
         <div className="col-span-12 lg:col-span-5 space-y-3">
           {filtered.map(s => {
             const isSelected = selectedId === s.id;
+            const finalPrice = calculateFinalPrice(s);
+            const hasPromo = s.promo?.active;
+
             return (
               <div
                 key={s.id}
@@ -71,57 +162,80 @@ export default function OwnerServicesPage() {
                     <h4 className="font-body-md font-bold text-on-surface">{s.name}</h4>
                     <p className="text-[11px] font-mono text-on-surface-variant mt-0.5">{s.id}</p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className="material-symbols-outlined text-[18px] text-on-surface-variant">link</span>
-                    <span className="text-[12px] font-bold text-primary bg-primary-container/30 px-2 py-0.5 rounded-full">{s.linkedProducts.length} items</span>
+                  <div className="flex flex-col items-end">
+                    {hasPromo ? (
+                      <>
+                        <span className="text-[11px] text-on-surface-variant line-through">{formatCurrency(s.price)}</span>
+                        <span className="text-[14px] font-bold text-green-600">{formatCurrency(finalPrice)}</span>
+                      </>
+                    ) : (
+                      <span className="text-[14px] font-bold text-primary">{formatCurrency(s.price)}</span>
+                    )}
                   </div>
                 </div>
-                {isSelected && (
-                  <div className="mt-3 pt-3 border-t border-outline-variant/20">
-                    <p className="text-[11px] text-on-surface-variant flex items-center gap-1">
-                      <span className="material-symbols-outlined text-[14px]">info</span>
-                      Click to view the full product mapping on the right panel.
-                    </p>
+                <div className="mt-3 pt-3 border-t border-outline-variant/20 flex justify-between items-center">
+                  <div className="flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[16px] text-on-surface-variant">link</span>
+                    <span className="text-[11px] font-bold text-primary bg-primary-container/30 px-2 py-0.5 rounded-full">{s.linkedProducts.length} produk terhubung</span>
                   </div>
-                )}
+                  {hasPromo && (
+                    <span className="text-[10px] bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[12px]">local_offer</span>
+                      {s.promo!.discountType === 'percentage' ? `${s.promo!.discountValue}% OFF` : `Promo`}
+                    </span>
+                  )}
+                </div>
               </div>
             );
           })}
           {filtered.length === 0 && (
             <div className="p-8 text-center text-on-surface-variant bg-white rounded-2xl border border-outline-variant/20">
-              No services match &quot;{search}&quot;
+              Tidak ada layanan yang cocok dengan "{search}"
             </div>
           )}
         </div>
 
-        {/* Right: Mapping Diagram */}
+        {/* Right: Detail Panel */}
         <div className="col-span-12 lg:col-span-7">
           {selected ? (
             <div className="glass-card ambient-shadow rounded-2xl overflow-hidden sticky top-24">
-              <div className="bg-primary/5 p-6 border-b border-outline-variant/30">
-                <h3 className="font-headline-md text-headline-md font-bold text-primary mb-1">{selected.name}</h3>
-                <p className="font-body-sm text-on-surface-variant flex items-center gap-2">
-                  <span className="material-symbols-outlined text-[16px]">account_tree</span>
-                  Inventory Dependency Map
-                </p>
+              <div className="bg-primary/5 p-6 border-b border-outline-variant/30 flex justify-between items-start">
+                <div>
+                  <h3 className="font-headline-md text-headline-md font-bold text-primary mb-1">{selected.name}</h3>
+                  <p className="font-body-sm font-mono text-on-surface-variant flex items-center gap-2">
+                    ID: {selected.id}
+                  </p>
+                </div>
+                <div className="text-right bg-white p-3 rounded-xl border border-outline-variant/20 shadow-sm">
+                  {selected.promo?.active ? (
+                    <>
+                      <p className="text-[12px] text-on-surface-variant uppercase tracking-wider mb-0.5 font-bold">Harga Promo</p>
+                      <p className="text-[20px] font-bold text-green-600 leading-none mb-1">{formatCurrency(calculateFinalPrice(selected))}</p>
+                      <p className="text-[12px] text-on-surface-variant line-through">{formatCurrency(selected.price)}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-[12px] text-on-surface-variant uppercase tracking-wider mb-0.5 font-bold">Harga Normal</p>
+                      <p className="text-[20px] font-bold text-primary leading-none">{formatCurrency(selected.price)}</p>
+                    </>
+                  )}
+                </div>
               </div>
 
               <div className="p-6 space-y-4">
-                {/* Visual Flow */}
                 <div className="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/20">
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-10 h-10 rounded-xl bg-primary-container flex items-center justify-center text-primary">
                       <span className="material-symbols-outlined">spa</span>
                     </div>
                     <div className="flex-1">
-                      <p className="font-body-md font-bold text-on-surface">{selected.name}</p>
-                      <p className="text-[11px] text-on-surface-variant">Service performed → Products consumed</p>
+                      <p className="font-body-md font-bold text-on-surface">Produk & Obat Terhubung</p>
+                      <p className="text-[11px] text-on-surface-variant">Otomatis terpotong dari stok saat layanan dilakukan</p>
                     </div>
-                    <span className="material-symbols-outlined text-outline-variant text-[28px]">arrow_downward</span>
                   </div>
 
                   <div className="border-t border-dashed border-outline-variant/30 pt-4 space-y-3">
-                    {selected.linkedProducts.map((prod, idx) => {
+                    {selected.linkedProducts.length > 0 ? selected.linkedProducts.map((prod, idx) => {
                       const stockInfo = getProductStock(prod.name);
                       const stockColor = stockInfo.status === 'In Stock' ? 'text-green-600 bg-green-100' :
                                          stockInfo.status === 'Low Stock' ? 'text-orange-600 bg-orange-100' :
@@ -138,44 +252,143 @@ export default function OwnerServicesPage() {
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="text-center">
-                              <span className="text-[10px] uppercase text-outline-variant tracking-wider block">Qty/Use</span>
+                              <span className="text-[10px] uppercase text-outline-variant tracking-wider block">Jml/Pakai</span>
                               <span className="font-bold text-on-surface text-[16px]">x{prod.defaultQty}</span>
                             </div>
                             {stockInfo.stock >= 0 && (
                               <div className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${stockColor}`}>
-                                {stockInfo.stock} left
+                                {stockInfo.stock} tersisa
                               </div>
                             )}
                           </div>
                         </div>
                       );
-                    })}
+                    }) : (
+                      <p className="text-center text-on-surface-variant text-[12px] py-4">Belum ada produk yang dipetakan ke layanan ini.</p>
+                    )}
                   </div>
                 </div>
 
-                {/* Impact Summary */}
-                <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20">
-                  <h4 className="font-label-md text-label-md uppercase text-outline flex items-center gap-2 mb-2">
-                    <span className="material-symbols-outlined text-[18px]">calculate</span>
-                    Impact Per Session
-                  </h4>
-                  <p className="text-body-sm text-on-surface-variant leading-relaxed">
-                    Every time <strong>{selected.name}</strong> is performed, the system will automatically deduct{' '}
-                    <strong>{selected.linkedProducts.reduce((sum, p) => sum + p.defaultQty, 0)} item(s)</strong> from inventory
-                    across <strong>{selected.linkedProducts.length} product type(s)</strong>.
-                  </p>
+                {/* Actions */}
+                <div className="flex gap-3 pt-2">
+                  <button
+                    className="flex-1 py-3 bg-primary-container text-primary rounded-xl font-label-md flex items-center justify-center gap-2 hover:bg-primary/20 transition-all shadow-sm"
+                    onClick={() => openEditModal(selected)}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">edit</span>
+                    Edit Layanan & Promo
+                  </button>
+                  <button
+                    className="flex-1 py-3 bg-error-container text-error rounded-xl font-label-md flex items-center justify-center gap-2 hover:bg-error/20 transition-all shadow-sm"
+                    onClick={() => handleDelete(selected.id)}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">delete</span>
+                    Hapus Layanan
+                  </button>
                 </div>
               </div>
             </div>
           ) : (
             <div className="glass-card ambient-shadow rounded-2xl p-12 text-center sticky top-24">
-              <span className="material-symbols-outlined text-[64px] text-outline-variant/40">device_hub</span>
-              <p className="font-headline-sm text-headline-sm text-on-surface mt-4 mb-2">No Service Selected</p>
-              <p className="font-body-md text-on-surface-variant">Select a service from the list to see its product dependency map.</p>
+              <span className="material-symbols-outlined text-[64px] text-outline-variant/40">account_tree</span>
+              <p className="font-headline-sm text-headline-sm text-on-surface mt-4 mb-2">Pilih Layanan</p>
+              <p className="font-body-md text-on-surface-variant">Pilih layanan dari daftar untuk melihat detail harga, promo, dan pemetaan produk.</p>
             </div>
           )}
         </div>
       </div>
+
+      {/* Modal CRUD Layanan */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 space-y-6 my-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <h3 className="font-headline-md text-headline-md text-primary">{editingId ? 'Edit Layanan' : 'Tambah Layanan Baru'}</h3>
+              <button className="text-on-surface-variant hover:text-error transition-colors" onClick={() => setShowModal(false)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Nama Layanan</label>
+                <input 
+                  className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                  value={formData.name} 
+                  onChange={e => setFormData({ ...formData, name: e.target.value })} 
+                  placeholder="e.g., Facial Acne Treatment" 
+                />
+              </div>
+              
+              <div>
+                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Harga Dasar (Rp)</label>
+                <input 
+                  type="number"
+                  className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                  value={formData.price} 
+                  onChange={e => setFormData({ ...formData, price: e.target.value })} 
+                  placeholder="e.g., 150000" 
+                />
+              </div>
+
+              <div className="pt-4 border-t border-outline-variant/30 mt-2">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <h4 className="font-label-lg font-bold text-on-surface flex items-center gap-2">
+                      <span className="material-symbols-outlined text-[20px] text-primary">local_offer</span>
+                      Aktifkan Promo Khusus
+                    </h4>
+                    <p className="text-[11px] text-on-surface-variant">Terapkan diskon spesial untuk layanan ini</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer" 
+                      checked={formData.promoActive}
+                      onChange={(e) => setFormData({ ...formData, promoActive: e.target.checked })}
+                    />
+                    <div className="w-11 h-6 bg-outline-variant/40 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
+                  </label>
+                </div>
+
+                {formData.promoActive && (
+                  <div className="grid grid-cols-2 gap-4 bg-primary/5 p-4 rounded-xl border border-primary/20">
+                    <div>
+                      <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Tipe Diskon</label>
+                      <select 
+                        className="w-full py-2.5 px-3 bg-white border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-[14px]"
+                        value={formData.promoType}
+                        onChange={(e) => setFormData({ ...formData, promoType: e.target.value as 'percentage' | 'fixed' })}
+                      >
+                        <option value="percentage">Persentase (%)</option>
+                        <option value="fixed">Nominal (Rp)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Nilai Diskon</label>
+                      <input 
+                        type="number"
+                        className="w-full py-2.5 px-3 bg-white border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-[14px]" 
+                        value={formData.promoValue} 
+                        onChange={e => setFormData({ ...formData, promoValue: e.target.value })} 
+                        placeholder={formData.promoType === 'percentage' ? "e.g., 20" : "e.g., 50000"} 
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <button 
+              className="w-full bg-primary text-white py-3.5 rounded-xl font-headline-sm text-[15px] hover:opacity-95 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 mt-4" 
+              onClick={handleSave}
+            >
+              <span className="material-symbols-outlined text-[20px]">{editingId ? 'save' : 'add_box'}</span>
+              {editingId ? 'Simpan Perubahan' : 'Tambah Layanan'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

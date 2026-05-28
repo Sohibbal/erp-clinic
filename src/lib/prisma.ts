@@ -1,7 +1,8 @@
-import { PrismaClient } from '@prisma/client'
+import { PrismaClient } from '../generated/prisma/client'
 
 const prismaClientSingleton = () => {
-  return new PrismaClient()
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return new PrismaClient({} as any)
 }
 
 declare const globalThis: {

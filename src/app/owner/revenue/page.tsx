@@ -38,16 +38,16 @@ export default function OwnerRevenuePage() {
         <div>
           <h2 className="font-headline-lg text-headline-lg text-primary flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-[32px]">account_balance_wallet</span>
-            Revenue & Financial Ledger
+            Pendapatan & Catatan Keuangan
           </h2>
-          <p className="font-body-md text-on-surface-variant mt-1">Detailed transaction records, cash flow analysis, and payment tracking.</p>
+          <p className="font-body-md text-on-surface-variant mt-1">Catatan transaksi terperinci, analisis arus kas, dan pelacakan pembayaran.</p>
         </div>
         <button
           className="px-5 py-2.5 bg-primary text-white rounded-xl font-label-md flex items-center gap-2 hover:opacity-90 transition-all shadow-md active:scale-95"
-          onClick={() => toast.success('Financial report exported as PDF.')}
+          onClick={() => toast.success('Laporan keuangan berhasil diekspor sebagai PDF.')}
         >
           <span className="material-symbols-outlined text-[18px]">download</span>
-          Export Report
+          Ekspor Laporan
         </button>
       </div>
 
@@ -55,36 +55,36 @@ export default function OwnerRevenuePage() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-gutter">
         <div className="glass-card ambient-shadow p-6 rounded-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-20 h-20 bg-green-100/30 rounded-bl-full -mr-6 -mt-6"></div>
-          <p className="font-label-md text-label-md text-outline uppercase mb-1">Total Collected</p>
+          <p className="font-label-md text-label-md text-outline uppercase mb-1">Total Terkumpul</p>
           <h3 className="font-headline-md text-headline-md text-on-surface">{formatCurrency(totalRevenue)}</h3>
           <p className="text-[11px] text-green-600 font-bold mt-1 flex items-center gap-1">
             <span className="material-symbols-outlined text-[14px]">trending_up</span>
-            {paidCount} transactions
+            {paidCount} transaksi
           </p>
         </div>
         <div className="glass-card ambient-shadow p-6 rounded-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 w-20 h-20 bg-orange-100/30 rounded-bl-full -mr-6 -mt-6"></div>
-          <p className="font-label-md text-label-md text-outline uppercase mb-1">Pending</p>
+          <p className="font-label-md text-label-md text-outline uppercase mb-1">Tertunda</p>
           <h3 className="font-headline-md text-headline-md text-on-surface">{formatCurrency(totalPending)}</h3>
           <p className="text-[11px] text-orange-600 font-bold mt-1 flex items-center gap-1">
             <span className="material-symbols-outlined text-[14px]">schedule</span>
-            {pendingCount} awaiting payment
+            {pendingCount} menunggu pembayaran
           </p>
         </div>
         <div className="glass-card ambient-shadow p-6 rounded-2xl">
-          <p className="font-label-md text-label-md text-outline uppercase mb-1">Avg Transaction</p>
+          <p className="font-label-md text-label-md text-outline uppercase mb-1">Rata-rata Transaksi</p>
           <h3 className="font-headline-md text-headline-md text-on-surface">
             {formatCurrency(paidCount > 0 ? Math.round(totalRevenue / paidCount) : 0)}
           </h3>
-          <p className="text-[11px] text-on-surface-variant font-bold mt-1">Per paid invoice</p>
+          <p className="text-[11px] text-on-surface-variant font-bold mt-1">Per faktur lunas</p>
         </div>
         <div className="glass-card ambient-shadow p-6 rounded-2xl">
-          <p className="font-label-md text-label-md text-outline uppercase mb-1">Top Method</p>
+          <p className="font-label-md text-label-md text-outline uppercase mb-1">Metode Teratas</p>
           <div className="flex items-center gap-2 mt-1">
             <span className="material-symbols-outlined text-primary text-[28px]">qr_code_2</span>
             <div>
               <h3 className="font-headline-sm text-on-surface">QRIS</h3>
-              <p className="text-[11px] text-on-surface-variant font-bold">Most used</p>
+              <p className="text-[11px] text-on-surface-variant font-bold">Paling sering digunakan</p>
             </div>
           </div>
         </div>
@@ -96,7 +96,7 @@ export default function OwnerRevenuePage() {
           <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
           <input
             type="text"
-            placeholder="Search by patient name or invoice..."
+            placeholder="Cari berdasarkan nama pasien atau faktur..."
             className="pl-10 pr-4 py-2.5 bg-white border border-outline-variant/60 rounded-xl text-body-sm w-full focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -127,11 +127,11 @@ export default function OwnerRevenuePage() {
         <table className="w-full text-left">
           <thead className="bg-primary-container/10 border-b border-outline-variant/30">
             <tr>
-              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Invoice</th>
-              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Patient</th>
-              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Service</th>
-              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Method</th>
-              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Amount</th>
+              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Faktur</th>
+              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Pasien</th>
+              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Layanan</th>
+              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Metode</th>
+              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Jumlah</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Status</th>
             </tr>
           </thead>
@@ -162,7 +162,7 @@ export default function OwnerRevenuePage() {
               </tr>
             ))}
             {filtered.length === 0 && (
-              <tr><td colSpan={6} className="px-6 py-12 text-center text-on-surface-variant">No transactions match the current filter.</td></tr>
+              <tr><td colSpan={6} className="px-6 py-12 text-center text-on-surface-variant">Tidak ada transaksi yang sesuai dengan filter saat ini.</td></tr>
             )}
           </tbody>
         </table>

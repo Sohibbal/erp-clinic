@@ -4,11 +4,12 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { PRODUCTS, type Product, type StockStatus, formatCurrency } from '../../../lib/mock-data';
 
-export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasir' }) {
+export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasir' | 'owner' }) {
   const [products, setProducts] = useState<Product[]>(PRODUCTS);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StockStatus | 'All'>('All');
   const [showModal, setShowModal] = useState(false);
+  const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'Skincare', stock: '', price: '' });
 
   const filtered = products
@@ -34,23 +35,43 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
     return map[status];
   };
 
-  const handleAddProduct = () => {
-    if (!newProduct.name) { toast.error('Product name is required.'); return; }
-    const id = `P${String(products.length + 1).padStart(3, '0')}`;
-    const created: Product = {
-      id, name: newProduct.name, category: newProduct.category, stock: Number(newProduct.stock) || 0,
-      price: Number(newProduct.price) || 0, status: Number(newProduct.stock) > 10 ? 'In Stock' : Number(newProduct.stock) > 0 ? 'Low Stock' : 'Out of Stock',
-      icon: 'medication', batchNo: `NEW-${Date.now()}`, lastRestock: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }), expiryDate: 'Dec 2025',
-    };
-    setProducts(prev => [created, ...prev]);
+  const handleSaveProduct = () => {
+    if (!newProduct.name) { toast.error('Nama produk wajib diisi.'); return; }
+    
+    if (editingProductId) {
+      setProducts(prev => prev.map(p => {
+        if (p.id === editingProductId) {
+          return {
+            ...p,
+            name: newProduct.name,
+            category: newProduct.category,
+            stock: Number(newProduct.stock) || 0,
+            price: Number(newProduct.price) || 0,
+            status: Number(newProduct.stock) > 10 ? 'In Stock' : Number(newProduct.stock) > 0 ? 'Low Stock' : 'Out of Stock'
+          };
+        }
+        return p;
+      }));
+      toast.success(`Produk "${newProduct.name}" berhasil diperbarui!`);
+    } else {
+      const id = `P${String(products.length + 1).padStart(3, '0')}`;
+      const created: Product = {
+        id, name: newProduct.name, category: newProduct.category, stock: Number(newProduct.stock) || 0,
+        price: Number(newProduct.price) || 0, status: Number(newProduct.stock) > 10 ? 'In Stock' : Number(newProduct.stock) > 0 ? 'Low Stock' : 'Out of Stock',
+        icon: 'medication', batchNo: `NEW-${Date.now()}`, lastRestock: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }), expiryDate: 'Dec 2025',
+      };
+      setProducts(prev => [created, ...prev]);
+      toast.success(`Produk "${created.name}" berhasil ditambahkan!`);
+    }
+    
     setShowModal(false);
     setNewProduct({ name: '', category: 'Skincare', stock: '', price: '' });
-    toast.success(role === 'kasir' ? `Product request for "${created.name}" submitted!` : `Product "${created.name}" added to inventory!`);
+    setEditingProductId(null);
   };
 
   const handleRestock = (id: string) => {
     setProducts(prev => prev.map(p => p.id === id ? { ...p, stock: p.stock + 10, status: 'In Stock' as const } : p));
-    toast.success('Product restocked (+10 units)!');
+    toast.success('Stok produk berhasil ditambah (+10 unit)!');
   };
 
   return (
@@ -60,26 +81,28 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
         <div>
           <h2 className="font-headline-lg text-headline-lg text-primary flex items-center gap-2">
             <span className="material-symbols-outlined text-primary text-[32px]">inventory_2</span>
-            Manage Inventory
+            Stok Barang
           </h2>
-          <p className="font-body-md text-on-surface-variant mt-1">Control your clinic&apos;s stock, pricing, and product catalog.</p>
+          <p className="font-body-md text-on-surface-variant mt-1">Kelola stok barang klinik, harga, dan katalog produk.</p>
         </div>
         <div className="flex items-center gap-3">
           <div className="relative">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
-            <input type="text" placeholder="Search products..." className="pl-10 pr-4 py-2.5 bg-white border border-outline-variant/60 rounded-xl text-body-sm w-64 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={search} onChange={(e) => setSearch(e.target.value)} />
+            <input type="text" placeholder="Cari produk..." className="pl-10 pr-4 py-2.5 bg-white border border-outline-variant/60 rounded-xl text-body-sm w-64 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <button className="bg-primary text-white px-5 py-2.5 rounded-xl font-label-md text-label-md flex items-center gap-2 hover:bg-primary/90 transition-all shadow-md hover:shadow-lg active:scale-95" onClick={() => setShowModal(true)}>
-            <span className="material-symbols-outlined text-[18px]">{role === 'kasir' ? 'post_add' : 'add'}</span>
-            {role === 'kasir' ? 'Request Product' : 'Add Product'}
-          </button>
+          {role === 'apoteker' && (
+            <button className="bg-primary text-white px-5 py-2.5 rounded-xl font-label-md text-label-md flex items-center gap-2 hover:bg-primary/90 transition-all shadow-md hover:shadow-lg active:scale-95" onClick={() => { setEditingProductId(null); setNewProduct({ name: '', category: 'Skincare', stock: '', price: '' }); setShowModal(true); }}>
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              Tambah Produk
+            </button>
+          )}
         </div>
       </div>
 
       {/* Status Filter Tabs */}
       <div className="flex gap-2 flex-wrap">
         {statusFilters.map(f => (
-          <button key={f} className={`px-4 py-2 rounded-full font-label-md text-label-md transition-all ${statusFilter === f ? 'bg-primary text-white shadow-md' : 'bg-surface-container-low border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-high'}`} onClick={() => setStatusFilter(f)}>{f}</button>
+          <button key={f} className={`px-4 py-2 rounded-full font-label-md text-label-md transition-all ${statusFilter === f ? 'bg-primary text-white shadow-md' : 'bg-surface-container-low border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-high'}`} onClick={() => setStatusFilter(f)}>{f === 'All' ? 'Semua' : f === 'In Stock' ? 'Tersedia' : f === 'Low Stock' ? 'Stok Menipis' : f === 'Expiring' ? 'Akan Kedaluwarsa' : 'Habis'}</button>
         ))}
       </div>
 
@@ -94,33 +117,33 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
                 <div className="w-14 h-14 rounded-xl bg-surface-container-highest flex items-center justify-center text-primary group-hover:scale-110 transition-transform duration-300">
                   <span className="material-symbols-outlined text-[28px]">{p.icon}</span>
                 </div>
-                <span className={`${badge.bg} ${badge.text} text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider`}>{p.status}</span>
+                <span className={`${badge.bg} ${badge.text} text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider`}>{p.status === 'In Stock' ? 'Tersedia' : p.status === 'Low Stock' ? 'Stok Menipis' : p.status === 'Expiring' ? 'Akan Kedaluwarsa' : 'Habis'}</span>
               </div>
               <div>
                 <h4 className="font-headline-sm text-[18px] text-on-surface font-bold leading-tight mb-1">{p.name}</h4>
                 <p className="font-body-sm text-on-surface-variant flex items-center gap-1">
                   <span className={`w-2 h-2 rounded-full ${dot}`}></span>
-                  {p.stock} Units Left • {p.category}
+                  {p.stock} Unit Tersisa • {p.category}
                 </p>
               </div>
               <div className="pt-4 border-t border-outline-variant/30 flex justify-between items-center mt-auto">
                 <div>
-                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">Price per unit</p>
+                  <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">Harga per unit</p>
                   <span className="font-label-md text-primary font-bold text-[14px]">{formatCurrency(p.price)}</span>
                 </div>
                 <div className="flex gap-1">
                   {role === 'apoteker' && (
-                    <button className="p-2 hover:bg-primary-container/30 rounded-lg text-primary transition-all" title="Edit Product" onClick={() => toast.info(`Edit ${p.name} — coming soon.`)}>
+                    <button className="p-2 hover:bg-primary-container/30 rounded-lg text-primary transition-all" title="Edit Produk" onClick={() => {
+                      setEditingProductId(p.id);
+                      setNewProduct({ name: p.name, category: p.category, stock: p.stock.toString(), price: p.price.toString() });
+                      setShowModal(true);
+                    }}>
                       <span className="material-symbols-outlined text-[20px]">edit</span>
                     </button>
                   )}
-                  {role === 'apoteker' ? (
-                    <button className="p-2 hover:bg-primary-container/30 rounded-lg text-primary transition-all" title="Restock" onClick={() => handleRestock(p.id)}>
+                  {role === 'apoteker' && (
+                    <button className="p-2 hover:bg-primary-container/30 rounded-lg text-primary transition-all" title="Tambah Stok" onClick={() => handleRestock(p.id)}>
                       <span className="material-symbols-outlined text-[20px]">add_shopping_cart</span>
-                    </button>
-                  ) : (
-                    <button className="p-2 hover:bg-primary-container/30 rounded-lg text-primary transition-all" title="Request Item" onClick={() => toast.success(`Request for ${p.name} submitted!`)}>
-                      <span className="material-symbols-outlined text-[20px]">inventory_2</span>
                     </button>
                   )}
                 </div>
@@ -131,48 +154,46 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
         {filtered.length === 0 && (
           <div className="col-span-full text-center py-12 text-on-surface-variant">
             <span className="material-symbols-outlined text-[48px] text-outline-variant/40">search_off</span>
-            <p className="mt-2">No products found.</p>
+            <p className="mt-2">Produk tidak ditemukan.</p>
           </div>
         )}
       </div>
 
-      {/* Add/Request Modal */}
+      {/* Add/Edit Modal */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => { setShowModal(false); setEditingProductId(null); }}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 space-y-6" onClick={(e) => e.stopPropagation()}>
             <div className="flex justify-between items-center">
-              <h3 className="font-headline-md text-headline-md text-primary">{role === 'kasir' ? 'Request Product' : 'Add New Product'}</h3>
-              <button className="text-on-surface-variant hover:text-error" onClick={() => setShowModal(false)}>
+              <h3 className="font-headline-md text-headline-md text-primary">{editingProductId ? 'Edit Produk' : 'Tambah Produk Baru'}</h3>
+              <button className="text-on-surface-variant hover:text-error" onClick={() => { setShowModal(false); setEditingProductId(null); }}>
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
             <div className="space-y-4">
               <div>
-                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Product Name *</label>
-                <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Enter product name" value={newProduct.name} onChange={(e) => setNewProduct(prev => ({ ...prev, name: e.target.value }))} />
+                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Nama Produk *</label>
+                <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Masukkan nama produk" value={newProduct.name} onChange={(e) => setNewProduct(prev => ({ ...prev, name: e.target.value }))} />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Category</label>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Kategori</label>
                   <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" value={newProduct.category} onChange={(e) => setNewProduct(prev => ({ ...prev, category: e.target.value }))}>
                     <option>Skincare</option><option>Injectables</option><option>Treatments</option><option>Clinical</option>
                   </select>
                 </div>
                 <div>
-                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">{role === 'kasir' ? 'Qty Needed' : 'Initial Stock'}</label>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Stok Awal</label>
                   <input type="number" className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="0" value={newProduct.stock} onChange={(e) => setNewProduct(prev => ({ ...prev, stock: e.target.value }))} />
                 </div>
               </div>
-              {role === 'apoteker' && (
-                <div>
-                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Price (IDR)</label>
-                  <input type="number" className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="0" value={newProduct.price} onChange={(e) => setNewProduct(prev => ({ ...prev, price: e.target.value }))} />
-                </div>
-              )}
+              <div>
+                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Harga (Rp)</label>
+                <input type="number" className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="0" value={newProduct.price} onChange={(e) => setNewProduct(prev => ({ ...prev, price: e.target.value }))} />
+              </div>
             </div>
-            <button className="w-full bg-primary text-white py-3.5 rounded-xl font-headline-sm text-[15px] hover:opacity-95 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2" onClick={handleAddProduct}>
-              <span className="material-symbols-outlined text-[20px]">{role === 'kasir' ? 'post_add' : 'add'}</span>
-              {role === 'kasir' ? 'Submit Request' : 'Add Product'}
+            <button className="w-full bg-primary text-white py-3.5 rounded-xl font-headline-sm text-[15px] hover:opacity-95 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2" onClick={handleSaveProduct}>
+              <span className="material-symbols-outlined text-[20px]">{editingProductId ? 'save' : 'add'}</span>
+              {editingProductId ? 'Simpan Perubahan' : 'Tambah Produk'}
             </button>
           </div>
         </div>

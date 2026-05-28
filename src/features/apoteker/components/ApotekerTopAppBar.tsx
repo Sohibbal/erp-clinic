@@ -2,7 +2,7 @@ export function ApotekerTopAppBar() {
   return (
     <header className="sticky top-0 z-40 bg-white/70 backdrop-blur-xl border-b border-outline-variant/30 h-16 flex items-center justify-between px-margin w-full">
       <div className="flex items-center gap-4">
-        <h2 className="font-headline-md text-headline-md font-bold text-primary tracking-tight">Pharmacy Management</h2>
+        <h2 className="font-headline-md text-headline-md font-bold text-primary tracking-tight">Manajemen Apotek</h2>
       </div>
       <div className="flex items-center gap-6">
         <div className="relative">

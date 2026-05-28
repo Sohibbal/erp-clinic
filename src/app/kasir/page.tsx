@@ -1,309 +1,315 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { INITIAL_QUEUE, CHECKOUT_ITEMS, type QueueItem, type CheckoutItem, formatCurrency } from '../../lib/mock-data';
+import { useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { PATIENTS, TRANSACTIONS, type Patient, type Transaction } from '../../lib/mock-data';
 
 export default function KasirDashboard() {
+  const [patients, setPatients] = useState<Patient[]>(PATIENTS);
+  const [selectedNoRM, setSelectedNoRM] = useState<string>('RM-0001');
+  const [search, setSearch] = useState('');
+  const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [showQueueModal, setShowQueueModal] = useState(false);
+  const [queueData, setQueueData] = useState({ doctor: 'Dr. Elena', therapist: 'Anna Kusuma (Terapis)' });
+  const [newPatient, setNewPatient] = useState({ name: '', phone: '', dob: '', gender: 'Female' as 'Male' | 'Female', allergies: '', noRM: '', nik: '', namaWali: '', pekerjaan: '' });
   const router = useRouter();
-  const [queue, setQueue] = useState<QueueItem[]>(INITIAL_QUEUE);
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>('PT-8829');
-  const [paymentMethod, setPaymentMethod] = useState<'qris' | 'transfer' | 'cash'>('qris');
-  const [promoCode, setPromoCode] = useState('');
-  const [appliedDiscount, setAppliedDiscount] = useState(0);
-  const [showCheckout, setShowCheckout] = useState(true);
 
-  const selectedQueue = queue.find(q => q.patientId === selectedPatientId);
-  const checkoutItems: CheckoutItem[] = selectedPatientId ? (CHECKOUT_ITEMS[selectedPatientId] || []) : [];
-  const subtotal = checkoutItems.reduce((sum, item) => sum + item.qty * item.price, 0);
-  const grandTotal = subtotal - (subtotal * appliedDiscount);
+  const selected = patients.find(p => p.noRM === selectedNoRM);
+  const filtered = patients.filter(p =>
+    p.name.toLowerCase().includes(search.toLowerCase()) ||
+    (p.noRM && p.noRM.toLowerCase().includes(search.toLowerCase())) ||
+    (p.nik && p.nik.toLowerCase().includes(search.toLowerCase())) ||
+    p.phone.includes(search)
+  );
 
-  const handleApplyPromo = () => {
-    if (promoCode.toUpperCase() === 'AURA10') {
-      setAppliedDiscount(0.1);
-      toast.success('Promo code AURA10 applied! 10% discount.');
-    } else if (promoCode.toUpperCase() === 'AURA20') {
-      setAppliedDiscount(0.2);
-      toast.success('Promo code AURA20 applied! 20% discount.');
-    } else if (promoCode) {
-      toast.error('Invalid promo code.');
-      setAppliedDiscount(0);
+  const handleRegister = () => {
+    if (!newPatient.name || !newPatient.phone || !newPatient.noRM || !newPatient.nik) {
+      toast.error('Nama Lengkap, Telepon, No. RM, dan NIK wajib diisi.');
+      return;
     }
+    const initials = newPatient.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+    const created: Patient = {
+      name: newPatient.name, initials, age: 0, gender: newPatient.gender,
+      phone: newPatient.phone, dob: newPatient.dob || '-', allergies: newPatient.allergies || 'None',
+      registeredDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+      status: 'New Patient', lastVisitDate: 'New', lastVisitTreatment: '-', medicalHistory: [],
+      noRM: newPatient.noRM, nik: newPatient.nik, namaWali: newPatient.namaWali, pekerjaan: newPatient.pekerjaan
+    };
+    setPatients(prev => [created, ...prev]);
+    setSelectedNoRM(newPatient.noRM);
+    setShowRegisterModal(false);
+    setNewPatient({ name: '', phone: '', dob: '', gender: 'Female', allergies: '', noRM: '', nik: '', namaWali: '', pekerjaan: '' });
+    toast.success(`Pasien ${created.name} berhasil didaftarkan!`);
   };
 
-  const handleProcessBilling = (patientId: string) => {
-    setSelectedPatientId(patientId);
-    setShowCheckout(true);
-    setPromoCode('');
-    setAppliedDiscount(0);
+  const handleAddToQueue = () => {
+    if (!selected) return;
+    
+    // Create pending transaction to simulate queue
+    const newTx: Transaction = {
+      id: `T${String(TRANSACTIONS.length + 1).padStart(3, '0')}`,
+      invoiceId: `#INV-${Date.now().toString().slice(-6)}`,
+      patientName: selected.name,
+      service: selected.lastVisitTreatment !== '-' ? selected.lastVisitTreatment : 'General Consultation',
+      amount: Math.floor(Math.random() * 500000) + 150000, // random amount for mock
+      method: null,
+      methodIcon: '',
+      status: 'Pending',
+      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      date: 'today'
+    };
+    
+    TRANSACTIONS.unshift(newTx);
+    
+    toast.success(`${selected.name} berhasil ditambahkan ke antrean (Dokter: ${queueData.doctor}, Terapis: ${queueData.therapist})!`);
+    setShowQueueModal(false);
+    router.push('/kasir/billing');
   };
-
-  const handleGenerateInvoice = () => {
-    if (!selectedQueue) return;
-    toast.success(`Invoice generated for ${selectedQueue.patientName}!`);
-    setQueue(prev => prev.filter(q => q.patientId !== selectedPatientId));
-    setShowCheckout(false);
-    setSelectedPatientId(null);
-  };
-
-  const handleSendWhatsApp = () => {
-    toast.success('Receipt sent via WhatsApp!');
-  };
-
-  const statusStyles: Record<string, { bg: string; text: string; label: string }> = {
-    done: { bg: 'bg-green-100', text: 'text-green-700', label: 'Done' },
-    'in-room': { bg: 'bg-blue-100', text: 'text-blue-700', label: 'In Room' },
-    waiting: { bg: 'bg-yellow-100', text: 'text-yellow-700', label: 'Waiting' },
-  };
-
-  const paymentMethods = [
-    { id: 'qris' as const, icon: 'qr_code_2', label: 'QRIS' },
-    { id: 'transfer' as const, icon: 'account_balance', label: 'Transfer' },
-    { id: 'cash' as const, icon: 'payments', label: 'Cash' },
-  ];
 
   return (
-    <>
-      <div className="p-margin max-w-container-max mx-auto w-full space-y-gutter">
-        {/* Top Action Cards */}
-        <section className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-gutter">
-          <div
-            className="glass-card p-stack-md rounded-xl flex items-center gap-4 hover:border-primary/30 cursor-pointer transition-all active:scale-95"
-            onClick={() => router.push('/kasir/patients')}
+    <div className="p-margin max-w-container-max mx-auto w-full space-y-stack-lg">
+      
+      {/* Header */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline-variant/30 pb-4">
+        <div>
+          <h2 className="font-headline-lg text-headline-lg text-primary flex items-center gap-2">
+            <span className="material-symbols-outlined text-primary text-[32px]">dashboard</span>
+            Dashboard & Rekam Medis
+          </h2>
+          <p className="font-body-md text-on-surface-variant mt-1">Kelola pendaftaran pasien dan lihat rekam medis.</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="relative">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-on-surface-variant text-[20px]">search</span>
+            <input
+              type="text"
+              placeholder="Cari nama, No. RM, NIK..."
+              className="pl-10 pr-4 py-2.5 bg-white border border-outline-variant/60 rounded-xl text-body-sm w-72 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          <button
+            className="bg-primary text-white px-5 py-2.5 rounded-xl font-label-md text-label-md flex items-center gap-2 hover:bg-primary/90 transition-all shadow-md hover:shadow-lg active:scale-95"
+            onClick={() => setShowRegisterModal(true)}
           >
-            <div className="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center text-primary">
-              <span className="material-symbols-outlined">person_add</span>
-            </div>
-            <div>
-              <h3 className="font-label-md text-label-md text-on-surface-variant uppercase">New Patient</h3>
-              <p className="font-headline-sm text-headline-sm text-primary">Add Record</p>
-            </div>
-          </div>
-          <div className="glass-card p-stack-md rounded-xl flex items-center gap-4 hover:border-primary/30 cursor-pointer transition-all">
-            <div className="w-12 h-12 rounded-full bg-secondary-container flex items-center justify-center text-secondary">
-              <span className="material-symbols-outlined">group</span>
-            </div>
-            <div>
-              <h3 className="font-label-md text-label-md text-on-surface-variant uppercase">Check Queue</h3>
-              <p className="font-headline-sm text-headline-sm text-secondary">{queue.length} Waiting</p>
-            </div>
-          </div>
-          <div
-            className="glass-card p-stack-md rounded-xl flex items-center gap-4 hover:border-primary/30 cursor-pointer transition-all active:scale-95"
-            onClick={() => router.push('/kasir/billing')}
-          >
-            <div className="w-12 h-12 rounded-full bg-tertiary-container flex items-center justify-center text-tertiary">
-              <span className="material-symbols-outlined">receipt_long</span>
-            </div>
-            <div>
-              <h3 className="font-label-md text-label-md text-on-surface-variant uppercase">Today&apos;s Billing</h3>
-              <p className="font-headline-sm text-headline-sm text-tertiary">24 Invoices</p>
-            </div>
-          </div>
-          <div className="glass-card p-stack-md rounded-xl flex items-center gap-4 hover:border-primary/30 cursor-pointer transition-all">
-            <div className="w-12 h-12 rounded-full bg-primary-fixed flex items-center justify-center text-primary">
-              <span className="material-symbols-outlined">payments</span>
-            </div>
-            <div>
-              <h3 className="font-label-md text-label-md text-on-surface-variant uppercase">Sales Report</h3>
-              <p className="font-headline-sm text-headline-sm text-primary">View Trends</p>
-            </div>
-          </div>
-        </section>
-
-        {/* Main Body Split View */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
-          {/* Left: Queue Management */}
-          <section className="lg:col-span-5 space-y-stack-md">
-            <div className="flex items-center justify-between">
-              <h3 className="font-headline-sm text-headline-sm text-on-surface">Active Queue</h3>
-              <span className="font-label-md text-label-md bg-surface-container-high px-3 py-1 rounded-full">April 12, 2024</span>
-            </div>
-            <div className="space-y-3">
-              {queue.length === 0 && (
-                <div className="glass-card p-8 rounded-xl text-center">
-                  <span className="material-symbols-outlined text-[48px] text-outline-variant mb-2">check_circle</span>
-                  <p className="font-body-md text-on-surface-variant">All patients have been processed!</p>
-                </div>
-              )}
-              {queue.map((item) => {
-                const style = statusStyles[item.status];
-                const isSelected = item.patientId === selectedPatientId && showCheckout;
-                return (
-                  <div
-                    key={item.patientId}
-                    className={`glass-card p-4 rounded-xl flex items-center justify-between transition-all cursor-pointer ${isSelected ? 'border-l-4 border-l-primary/40 bg-white ring-2 ring-primary/20' : 'bg-white/50 hover:bg-white/80'}`}
-                    onClick={() => { setSelectedPatientId(item.patientId); setShowCheckout(true); setPromoCode(''); setAppliedDiscount(0); }}
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${isSelected ? 'bg-primary-container text-primary' : 'bg-surface-container-high text-on-surface-variant'}`}>
-                        {item.initials}
-                      </div>
-                      <div>
-                        <h4 className="font-body-md font-semibold text-on-surface">{item.patientName}</h4>
-                        <p className="text-body-sm text-on-surface-variant">{item.service}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className={`block px-2 py-1 ${style.bg} ${style.text} text-[10px] font-bold rounded uppercase mb-2 text-center`}>{style.label}</span>
-                      {item.status === 'done' ? (
-                        <button
-                          className="text-primary font-label-md border border-primary/20 px-3 py-1 rounded-lg hover:bg-primary-container/20 transition-all"
-                          onClick={(e) => { e.stopPropagation(); handleProcessBilling(item.patientId); }}
-                        >
-                          Process Billing
-                        </button>
-                      ) : (
-                        <p className="text-[10px] mt-2 text-on-surface-variant">{item.estimatedTime}</p>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </section>
-
-          {/* Right: Checkout Workspace */}
-          <section className="lg:col-span-7">
-            {showCheckout && selectedQueue ? (
-              <div className="glass-card rounded-2xl overflow-hidden flex flex-col h-full bg-white">
-                {/* Header */}
-                <div className="p-stack-md bg-primary-container/20 border-b border-outline-variant/30 flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="material-symbols-outlined text-primary">shopping_cart_checkout</span>
-                    <h3 className="font-headline-sm text-headline-sm text-on-surface">Checkout: {selectedQueue.patientName}</h3>
-                  </div>
-                  <button
-                    className="text-on-surface-variant hover:text-error transition-colors"
-                    onClick={() => setShowCheckout(false)}
-                  >
-                    <span className="material-symbols-outlined">close</span>
-                  </button>
-                </div>
-
-                {/* Itemized Table */}
-                <div className="p-stack-md overflow-x-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-surface-container-low">
-                        <th className="p-3 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Item/Service</th>
-                        <th className="p-3 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-center">Qty</th>
-                        <th className="p-3 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Price</th>
-                        <th className="p-3 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Total</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-outline-variant/20">
-                      {checkoutItems.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-primary-container/10 transition-colors">
-                          <td className="p-3">
-                            <p className="font-body-md font-medium text-on-surface">{item.name}</p>
-                            <span className="text-[12px] text-on-surface-variant">{item.type}</span>
-                          </td>
-                          <td className="p-3 text-center text-body-sm">{item.qty}</td>
-                          <td className="p-3 text-right text-body-sm">{formatCurrency(item.price, 'USD')}</td>
-                          <td className="p-3 text-right font-semibold">{formatCurrency(item.qty * item.price, 'USD')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {/* Summary & Payment */}
-                <div className="p-stack-md bg-surface-container-low/50 grid grid-cols-1 md:grid-cols-2 gap-stack-lg">
-                  {/* Payment Section */}
-                  <div className="space-y-4">
-                    <h4 className="font-label-md text-label-md text-on-surface-variant uppercase">Payment Method</h4>
-                    <div className="grid grid-cols-3 gap-2">
-                      {paymentMethods.map((pm) => (
-                        <button
-                          key={pm.id}
-                          className={`flex flex-col items-center justify-center p-3 rounded-xl border-2 transition-all ${paymentMethod === pm.id ? 'border-primary bg-white text-primary' : 'border-outline-variant bg-white text-on-surface-variant hover:border-primary/50'}`}
-                          onClick={() => setPaymentMethod(pm.id)}
-                        >
-                          <span className="material-symbols-outlined">{pm.icon}</span>
-                          <span className="text-[10px] font-bold mt-1">{pm.label}</span>
-                        </button>
-                      ))}
-                    </div>
-                    {paymentMethod === 'qris' && (
-                      <div className="mt-4 p-4 bg-white border border-outline-variant/30 rounded-xl flex flex-col items-center justify-center">
-                        <div className="w-32 h-32 bg-gray-100 flex items-center justify-center rounded-lg mb-2 overflow-hidden relative">
-                          <div className="absolute inset-0 bg-gradient-to-tr from-[var(--color-rose-gold)]/20 to-primary/10"></div>
-                          <span className="material-symbols-outlined text-[64px] text-primary/40">qr_code_2</span>
-                        </div>
-                        <p className="text-[11px] text-on-surface-variant italic">Scan to complete payment via QRIS</p>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Totals Section */}
-                  <div className="flex flex-col justify-between space-y-4">
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-body-sm text-on-surface-variant">Subtotal</span>
-                        <span className="text-body-sm font-medium">{formatCurrency(subtotal, 'USD')}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-body-sm text-on-surface-variant">Discount / Promo</span>
-                        <div className="flex items-center gap-2">
-                          {appliedDiscount > 0 && <span className="text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded">-{appliedDiscount * 100}%</span>}
-                          <input
-                            className="w-24 text-right bg-transparent border-b border-outline-variant text-[12px] py-0 px-1 focus:ring-0 focus:border-primary"
-                            placeholder="Enter code"
-                            type="text"
-                            value={promoCode}
-                            onChange={(e) => setPromoCode(e.target.value)}
-                            onBlur={handleApplyPromo}
-                            onKeyDown={(e) => e.key === 'Enter' && handleApplyPromo()}
-                          />
-                        </div>
-                      </div>
-                      <div className="pt-4 mt-2 border-t border-outline-variant/30 flex justify-between items-end">
-                        <div>
-                          <span className="text-label-md text-on-surface-variant uppercase block">Grand Total</span>
-                          <h2 className="font-headline-lg text-headline-lg text-primary">{formatCurrency(grandTotal, 'USD')}</h2>
-                        </div>
-                        <span className="text-[10px] text-green-600 bg-green-50 px-2 py-1 rounded">Tax Included</span>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <button
-                        className="w-full py-4 bg-[var(--color-rose-gold)] text-white rounded-xl font-headline-sm text-headline-sm shadow-lg hover:brightness-105 transition-all flex items-center justify-center gap-3 active:scale-95 duration-150 ease-in-out"
-                        onClick={handleGenerateInvoice}
-                      >
-                        <span className="material-symbols-outlined">receipt</span>
-                        Generate Invoice
-                      </button>
-                      <button
-                        className="w-full py-3 bg-white border border-[var(--color-rose-gold)] text-[var(--color-rose-gold)] rounded-xl font-label-md text-label-md hover:bg-[var(--color-rose-gold)]/5 transition-all flex items-center justify-center gap-2"
-                        onClick={handleSendWhatsApp}
-                      >
-                        <span className="material-symbols-outlined text-[18px]">chat</span>
-                        Send WhatsApp Receipt
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="glass-card rounded-2xl p-12 text-center bg-white/50">
-                <span className="material-symbols-outlined text-[64px] text-outline-variant/40 mb-4">point_of_sale</span>
-                <h3 className="font-headline-sm text-headline-sm text-on-surface-variant mb-2">No Patient Selected</h3>
-                <p className="font-body-sm text-on-surface-variant">Click a patient from the queue to start checkout.</p>
-              </div>
-            )}
-          </section>
+            <span className="material-symbols-outlined text-[18px]">person_add</span> Daftar Pasien Baru
+          </button>
         </div>
       </div>
 
-      {/* Contextual FAB */}
-      <button
-        className="fixed bottom-margin right-margin w-14 h-14 bg-primary text-white rounded-full shadow-2xl flex items-center justify-center hover:scale-110 transition-transform active:scale-95 z-50"
-        onClick={() => router.push('/kasir/patients')}
-      >
-        <span className="material-symbols-outlined text-[28px]">calendar_add_on</span>
-      </button>
-    </>
+      <div className="grid grid-cols-12 gap-gutter">
+        {/* Left Column: Patient List */}
+        <div className="col-span-12 lg:col-span-7 space-y-4">
+          <div className="glass-card ambient-shadow rounded-xl overflow-hidden">
+            <table className="w-full text-left">
+              <thead className="bg-primary-container/20 border-b border-outline-variant/30">
+                <tr>
+                  <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Detail Pasien</th>
+                  <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Kontak</th>
+                  <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Kunjungan Terakhir</th>
+                  <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-outline-variant/20">
+                {filtered.map(p => (
+                  <tr
+                    key={p.noRM}
+                    className={`transition-colors cursor-pointer ${selectedNoRM === p.noRM ? 'bg-primary-container/10 border-l-4 border-l-primary' : 'hover:bg-primary-container/5'}`}
+                    onClick={() => setSelectedNoRM(p.noRM)}
+                  >
+                    <td className="px-6 py-4">
+                      <div className="font-body-md font-semibold text-on-surface">{p.name}</div>
+                      <div className="font-body-sm text-on-surface-variant">RM: {p.noRM}</div>
+                    </td>
+                    <td className="px-6 py-4"><div className="font-body-sm text-on-surface">{p.phone}</div></td>
+                    <td className="px-6 py-4">
+                      <div className="font-body-sm font-bold text-on-surface">{p.lastVisitDate}</div>
+                      <div className="font-body-sm text-on-surface-variant">{p.lastVisitTreatment}</div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${p.status === 'New Patient' ? 'bg-primary-container text-on-primary-container' : 'bg-secondary-container text-on-secondary-container'}`}>{p.status === 'New Patient' ? 'Pasien Baru' : 'Kunjungan Ulang'}</span>
+                    </td>
+                  </tr>
+                ))}
+                {filtered.length === 0 && (
+                  <tr><td colSpan={4} className="px-6 py-8 text-center text-on-surface-variant">Tidak ada pasien ditemukan untuk &quot;{search}&quot;</td></tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Right Column: Patient Medical Record */}
+        <div className="col-span-12 lg:col-span-5">
+          {selected ? (
+            <div className="glass-card ambient-shadow rounded-2xl overflow-hidden sticky top-24">
+              <div className="bg-primary-container/30 p-6 border-b border-primary-container flex items-center gap-4">
+                <div className="w-16 h-16 rounded-full bg-primary text-white flex items-center justify-center font-headline-md text-headline-md font-bold shadow-md">{selected.initials}</div>
+                <div>
+                  <h3 className="font-headline-sm text-[22px] font-bold text-primary">{selected.name}</h3>
+                  <p className="font-body-sm text-on-surface-variant">RM: {selected.noRM} • Terdaftar: {selected.registeredDate}</p>
+                </div>
+              </div>
+              <div className="p-6 space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-surface-container-low p-3 rounded-xl border border-outline-variant/20">
+                    <p className="text-[10px] text-on-surface-variant uppercase tracking-wider mb-1">Tanggal Lahir</p>
+                    <p className="font-body-sm font-semibold text-on-surface">{selected.dob} ({selected.age} thn)</p>
+                  </div>
+                  <div className="bg-surface-container-low p-3 rounded-xl border border-outline-variant/20">
+                    <p className="text-[10px] text-on-surface-variant uppercase tracking-wider mb-1">Alergi</p>
+                    <p className={`font-body-sm font-semibold ${selected.allergies !== 'None' ? 'text-error' : 'text-on-surface'}`}>{selected.allergies === 'None' ? 'Tidak ada' : selected.allergies}</p>
+                  </div>
+                </div>
+                <div>
+                  <h4 className="font-label-md text-label-md uppercase text-outline mb-3">Riwayat Medis Terakhir</h4>
+                  {selected.medicalHistory.length === 0 ? (
+                    <p className="text-body-sm text-on-surface-variant italic">Belum ada riwayat medis.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {selected.medicalHistory.map((record, idx) => (
+                        <div key={idx} className={`p-3 rounded-xl border shadow-sm ${idx === 0 ? 'bg-surface-container-lowest border-primary/20' : 'bg-surface-container-lowest border-outline-variant/20 opacity-70'}`}>
+                          <div className="flex justify-between items-center mb-1">
+                            <span className={`font-label-md ${idx === 0 ? 'text-primary' : 'text-on-surface-variant'}`}>{record.date}</span>
+                            <span className="text-[10px] text-on-surface-variant">{record.doctor}</span>
+                          </div>
+                          <p className="font-body-sm font-bold text-on-surface">{record.treatment}</p>
+                          <p className="text-[11px] text-on-surface-variant line-clamp-2 mt-1">{record.notes}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div className="bg-surface-container-low p-6 border-t border-outline-variant/30">
+                <button
+                  className="w-full bg-primary text-white py-3.5 rounded-xl font-headline-sm text-[15px] hover:shadow-[0_8px_20px_-6px_rgba(194,160,88,0.4)] hover:opacity-95 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2"
+                  onClick={() => setShowQueueModal(true)}
+                >
+                  <span className="material-symbols-outlined text-[20px]">queue</span>
+                  Tambah ke Antrean Hari Ini
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="glass-card ambient-shadow rounded-2xl p-12 text-center">
+              <span className="material-symbols-outlined text-[48px] text-outline-variant/40">person_search</span>
+              <p className="font-body-md text-on-surface-variant mt-2">Pilih pasien untuk melihat rekam medisnya.</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Register Modal */}
+      {showRegisterModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowRegisterModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl p-8 space-y-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <h3 className="font-headline-md text-headline-md text-primary">Daftar Pasien Baru</h3>
+              <button className="text-on-surface-variant hover:text-error" onClick={() => setShowRegisterModal(false)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">No. RM *</label>
+                  <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Masukkan No. RM" value={newPatient.noRM} onChange={(e) => setNewPatient(prev => ({ ...prev, noRM: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">NIK *</label>
+                  <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Masukkan NIK" value={newPatient.nik} onChange={(e) => setNewPatient(prev => ({ ...prev, nik: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Nama Lengkap *</label>
+                  <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Masukkan nama lengkap" value={newPatient.name} onChange={(e) => setNewPatient(prev => ({ ...prev, name: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Nama Wali</label>
+                  <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Nama wali pasien" value={newPatient.namaWali} onChange={(e) => setNewPatient(prev => ({ ...prev, namaWali: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Telepon *</label>
+                  <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="+62 8xx-xxxx-xxxx" value={newPatient.phone} onChange={(e) => setNewPatient(prev => ({ ...prev, phone: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Tanggal Lahir</label>
+                  <input type="date" className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" value={newPatient.dob} onChange={(e) => setNewPatient(prev => ({ ...prev, dob: e.target.value }))} />
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Jenis Kelamin</label>
+                  <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" value={newPatient.gender} onChange={(e) => setNewPatient(prev => ({ ...prev, gender: e.target.value as 'Male' | 'Female' }))}>
+                    <option value="Female">Perempuan</option>
+                    <option value="Male">Laki-laki</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Pekerjaan</label>
+                  <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Pekerjaan" value={newPatient.pekerjaan} onChange={(e) => setNewPatient(prev => ({ ...prev, pekerjaan: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Alergi</label>
+                  <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Tidak ada" value={newPatient.allergies} onChange={(e) => setNewPatient(prev => ({ ...prev, allergies: e.target.value }))} />
+                </div>
+              </div>
+            </div>
+            <button className="w-full bg-primary text-white py-3.5 rounded-xl font-headline-sm text-[15px] hover:opacity-95 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2" onClick={handleRegister}>
+              <span className="material-symbols-outlined text-[20px]">person_add</span>
+              Daftar Pasien
+            </button>
+          </div>
+        </div>
+      )}
+    {/* Queue Modal */}
+      {showQueueModal && selected && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowQueueModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center">
+              <h3 className="font-headline-md text-headline-md text-primary">Tambahkan ke Antrean</h3>
+              <button className="text-on-surface-variant hover:text-error transition-colors" onClick={() => setShowQueueModal(false)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <div className="p-4 bg-primary-container/20 rounded-xl border border-primary-container/30">
+              <p className="font-body-sm text-on-surface-variant mb-1">Pasien Terpilih</p>
+              <p className="font-headline-sm font-bold text-primary">{selected.name}</p>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Pilih Dokter</label>
+                <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={queueData.doctor} onChange={e => setQueueData({ ...queueData, doctor: e.target.value })}>
+                  <option value="Dr. Elena">Dr. Elena (Dermatologist)</option>
+                  <option value="Dr. James">Dr. James (Aesthetician)</option>
+                </select>
+              </div>
+              <div>
+                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Pilih Terapis</label>
+                <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={queueData.therapist} onChange={e => setQueueData({ ...queueData, therapist: e.target.value })}>
+                  <option value="Anna Kusuma (Terapis)">Anna Kusuma</option>
+                  <option value="Maya Sari (Terapis)">Maya Sari</option>
+                  <option value="Siti Aminah (Terapis)">Siti Aminah</option>
+                  <option value="Tidak Perlu Terapis">Tanpa Terapis</option>
+                </select>
+              </div>
+            </div>
+            <button className="w-full bg-primary text-white py-3.5 rounded-xl font-headline-sm text-[15px] hover:opacity-95 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 mt-4" onClick={handleAddToQueue}>
+              <span className="material-symbols-outlined text-[20px]">send</span>
+              Konfirmasi Antrean & Transaksi
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
