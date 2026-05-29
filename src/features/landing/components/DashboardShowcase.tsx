@@ -1,15 +1,15 @@
 export function DashboardShowcase() {
   return (
     <section className="py-24 bg-surface-container-lowest overflow-hidden" id="dashboard">
-      <div className="max-w-container-max mx-auto px-margin text-center mb-16">
+      <div className="max-w-container-max mx-auto px-margin text-center mb-16 animate-fade-in-up">
         <h2 className="font-headline-lg text-headline-lg text-on-background mb-4">A Workspace That Breathes</h2>
         <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl mx-auto">Reduce cognitive load with our glassmorphic, minimalist interface designed for focus and clarity.</p>
       </div>
-      <div className="max-w-5xl mx-auto px-margin relative">
+      <div className="max-w-5xl mx-auto px-margin relative animate-fade-in-up delay-200">
         {/* Abstract background elements for depth */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-3xl bg-secondary-container/20 rounded-[100px] blur-[80px] -z-10"></div>
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full max-w-3xl bg-secondary-container/20 rounded-[100px] blur-[80px] -z-10 animate-float"></div>
         {/* Dashboard Mockup Frame */}
-        <div className="bg-white/80 backdrop-blur-2xl border border-outline-variant/40 rounded-2xl shadow-[0_30px_60px_-20px_rgba(183,110,121,0.15)] overflow-hidden flex flex-col h-[600px]">
+        <div className="bg-white/80 backdrop-blur-2xl border border-outline-variant/40 rounded-2xl shadow-[0_30px_60px_-20px_rgba(183,110,121,0.15)] overflow-hidden flex flex-col h-[600px] hover:shadow-[0_40px_80px_-20px_rgba(183,110,121,0.2)] transition-shadow duration-500">
           {/* Mockup Header */}
           <div className="h-12 border-b border-outline-variant/30 flex items-center px-4 gap-2 bg-surface-container-low/50">
             <div className="w-3 h-3 rounded-full bg-error-container"></div>

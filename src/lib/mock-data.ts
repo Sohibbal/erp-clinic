@@ -1,5 +1,5 @@
 // ============================================================
-// MOCK DATA — Aura Beauty ERP
+// MOCK DATA — Sunrise Clinic ERP
 // Central data store used across all pages (frontend-only)
 // ============================================================
 
@@ -268,7 +268,7 @@ export interface CheckoutItem {
 export const CHECKOUT_ITEMS: Record<string, CheckoutItem[]> = {
   'RM-0001': [
     { name: 'Facial Acne Deep Cleanse', type: 'Clinical Service', qty: 1, price: 120000 },
-    { name: 'Aura Hydrating Cream', type: 'Product (50ml)', qty: 2, price: 45000 },
+    { name: 'Sunrise Hydrating Cream', type: 'Product (50ml)', qty: 2, price: 45000 },
     { name: 'Skin Refresh Toner', type: 'Product (100ml)', qty: 1, price: 32000 },
   ],
   'RM-0002': [

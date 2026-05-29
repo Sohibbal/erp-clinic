@@ -1,8 +1,8 @@
 import { TopNavBar } from '../components/layout/TopNavBar';
 import { Footer } from '../components/layout/Footer';
 import { Hero } from '../features/landing/components/Hero';
-import { Features } from '../features/landing/components/Features';
-import { DashboardShowcase } from '../features/landing/components/DashboardShowcase';
+import { Promo } from '../features/landing/components/Promo';
+import { SocialMedia } from '../features/landing/components/SocialMedia';
 
 export default function Home() {
   return (
@@ -10,8 +10,8 @@ export default function Home() {
       <TopNavBar />
       <main className="flex-grow">
         <Hero />
-        <Features />
-        <DashboardShowcase />
+        <Promo />
+        <SocialMedia />
       </main>
       <Footer />
     </>

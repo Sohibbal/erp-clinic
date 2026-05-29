@@ -18,7 +18,7 @@ export function SideNavBar() {
       <div className="px-6 mb-10">
         <div className="flex items-center gap-3 mb-1">
           {/* Sunrise Sunburst Icon */}
-          <svg width="36" height="36" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <svg className="w-12 h-auto text-[#C2A058]" viewBox="10 15 80 42" fill="none" xmlns="http://www.w3.org/2000/svg">
             <g transform="translate(50, 55)">
               {Array.from({ length: 17 }).map((_, i) => {
                 const angle = -180 + i * (180 / 16);
@@ -27,9 +27,9 @@ export function SideNavBar() {
                 const y1 = Math.sin(rad) * 18;
                 const x2 = Math.cos(rad) * 38;
                 const y2 = Math.sin(rad) * 38;
-                return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="#C2A058" strokeWidth="2" />;
+                return <line key={i} x1={x1} y1={y1} x2={x2} y2={y2} stroke="currentColor" strokeWidth="2" />;
               })}
-              <path d="M -15 0 A 15 15 0 0 1 15 0" stroke="#C2A058" strokeWidth="2.5" fill="none" />
+              <path d="M -15 0 A 15 15 0 0 1 15 0" stroke="currentColor" strokeWidth="2.5" fill="none" />
             </g>
           </svg>
           <div>
