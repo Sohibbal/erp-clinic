@@ -1,4 +1,4 @@
-# 🏥 Aura ERP Clinic
+# 🏥 Sunrise ERP Clinic
 
 A modern, comprehensive Enterprise Resource Planning (ERP) web application designed specifically for clinic management. Built with Next.js 14, React 19, Tailwind CSS v4, and Prisma ORM, this platform streamlines clinic operations ranging from patient registration to inventory management and cashier billing.
 
