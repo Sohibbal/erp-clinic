@@ -1,59 +1,40 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { DOCTORS } from '../../../lib/mock-data';
+import { getEmployees, createEmployee, updateEmployee, toggleEmployeeStatus, deleteEmployee } from '@/actions/employee';
+import type { EmployeeRole, EmployeeStatus } from '@/generated/prisma/client';
 
-type StaffRole = 'Doctor' | 'Pharmacist' | 'Receptionist' | 'Therapist';
-type StaffStatus = 'Active' | 'On Leave';
-
-interface StaffMember {
-  id: string;
-  name: string;
-  role: StaffRole;
-  specialty: string;
-  status: StaffStatus;
-  joinDate: string;
-  patientsSeen: number;
-  imageUrl: string;
-}
-
-const STAFF_LIST: StaffMember[] = [
-  ...DOCTORS.map(d => ({
-    id: d.id,
-    name: d.name,
-    role: 'Doctor' as StaffRole,
-    specialty: d.specialty,
-    status: 'Active' as StaffStatus,
-    joinDate: 'Jan 2022',
-    patientsSeen: d.patientsSeen,
-    imageUrl: d.imageUrl,
-  })),
-  {
-    id: 'S001', name: 'Anna Kusuma', role: 'Pharmacist', specialty: 'Clinical Pharmacy',
-    status: 'Active', joinDate: 'Mar 2022', patientsSeen: 0,
-    imageUrl: '',
-  },
-  {
-    id: 'S002', name: 'Rizky Pratama', role: 'Receptionist', specialty: 'Front Desk',
-    status: 'Active', joinDate: 'Jun 2023', patientsSeen: 0,
-    imageUrl: '',
-  },
-  {
-    id: 'S003', name: 'Dewi Sartika', role: 'Pharmacist', specialty: 'Compounding',
-    status: 'On Leave', joinDate: 'Aug 2022', patientsSeen: 0,
-    imageUrl: '',
-  },
-];
+type FilterRole = 'All' | EmployeeRole;
 
 export default function OwnerEmployeesPage() {
-  const [staff, setStaff] = useState(STAFF_LIST);
-  const [selectedId, setSelectedId] = useState<string | null>('D001');
-  const [roleFilter, setRoleFilter] = useState<'All' | StaffRole>('All');
+  const [staff, setStaff] = useState<any[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [roleFilter, setRoleFilter] = useState<FilterRole>('All');
+  const [isLoading, setIsLoading] = useState(true);
   
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [formData, setFormData] = useState({ name: '', role: 'Doctor' as StaffRole, specialty: '', joinDate: '', imageUrl: '' });
+  const [formData, setFormData] = useState({ name: '', role: 'DOCTOR' as EmployeeRole, specialty: '', joinDate: '', imageUrl: '' });
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    try {
+      setIsLoading(true);
+      const data = await getEmployees();
+      setStaff(data);
+      if (data.length > 0 && !selectedId) {
+        setSelectedId(data[0].id);
+      }
+    } catch (error) {
+      toast.error('Gagal memuat data karyawan');
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   const selected = staff.find(s => s.id === selectedId);
   const filtered = staff.filter(s => roleFilter === 'All' || s.role === roleFilter);
@@ -66,58 +47,78 @@ export default function OwnerEmployeesPage() {
     }
   };
 
-  const toggleStatus = (id: string) => {
-    setStaff(prev => prev.map(s => {
-      if (s.id !== id) return s;
-      const newStatus: StaffStatus = s.status === 'Active' ? 'On Leave' : 'Active';
-      toast.success(`Status ${s.name} diperbarui menjadi ${newStatus === 'Active' ? 'Aktif' : 'Cuti'}.`);
-      return { ...s, status: newStatus };
-    }));
+  const toggleStatus = async (id: string) => {
+    try {
+      await toggleEmployeeStatus(id);
+      const emp = staff.find(s => s.id === id);
+      const newStatus = emp.status === 'ACTIVE' ? 'ON_LEAVE' : 'ACTIVE';
+      toast.success(`Status ${emp.name} diperbarui menjadi ${newStatus === 'ACTIVE' ? 'Aktif' : 'Cuti'}.`);
+      await loadData();
+    } catch (error) {
+      toast.error('Gagal mengubah status');
+    }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.specialty || !formData.joinDate) {
       toast.error('Mohon lengkapi semua data karyawan.');
       return;
     }
-    if (editingId) {
-      setStaff(prev => prev.map(s => s.id === editingId ? { ...s, ...formData } : s));
-      toast.success('Profil karyawan berhasil diperbarui!');
-    } else {
-      const newId = `S${String(staff.length + 1).padStart(3, '0')}`;
-      const newStaff: StaffMember = {
-        id: newId,
-        ...formData,
-        status: 'Active',
-        patientsSeen: 0,
-      };
-      setStaff(prev => [...prev, newStaff]);
-      setSelectedId(newId);
-      toast.success('Karyawan baru berhasil ditambahkan!');
+    try {
+      if (editingId) {
+        await updateEmployee(editingId, formData);
+        toast.success('Profil karyawan berhasil diperbarui!');
+      } else {
+        await createEmployee(formData);
+        toast.success('Karyawan baru berhasil ditambahkan!');
+      }
+      setShowModal(false);
+      setFormData({ name: '', role: 'DOCTOR', specialty: '', joinDate: '', imageUrl: '' });
+      setEditingId(null);
+      await loadData();
+    } catch (error) {
+      toast.error('Gagal menyimpan data karyawan');
     }
-    setShowModal(false);
-    setFormData({ name: '', role: 'Doctor', specialty: '', joinDate: '', imageUrl: '' });
-    setEditingId(null);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Yakin ingin menghapus karyawan ini?')) {
-      setStaff(prev => prev.filter(s => s.id !== id));
-      if (selectedId === id) setSelectedId(null);
-      toast.success('Karyawan berhasil dihapus.');
+      try {
+        await deleteEmployee(id);
+        if (selectedId === id) setSelectedId(null);
+        toast.success('Karyawan berhasil dihapus.');
+        await loadData();
+      } catch (error) {
+        toast.error('Gagal menghapus karyawan');
+      }
     }
   };
 
-  const getRoleColor = (role: StaffRole) => {
+  const getRoleColor = (role: EmployeeRole) => {
     switch(role) {
-      case 'Doctor': return 'bg-blue-100 text-blue-700 border-blue-200';
-      case 'Pharmacist': return 'bg-purple-100 text-purple-700 border-purple-200';
-      case 'Receptionist': return 'bg-amber-100 text-amber-700 border-amber-200';
-      case 'Therapist': return 'bg-teal-100 text-teal-700 border-teal-200';
+      case 'DOCTOR': return 'bg-blue-100 text-blue-700 border-blue-200';
+      case 'PHARMACIST': return 'bg-purple-100 text-purple-700 border-purple-200';
+      case 'RECEPTIONIST': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'THERAPIST': return 'bg-teal-100 text-teal-700 border-teal-200';
+      default: return 'bg-gray-100 text-gray-700 border-gray-200';
     }
   };
 
-  const getInitials = (name: string) => name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+  const formatRole = (role: EmployeeRole) => {
+    switch(role) {
+      case 'DOCTOR': return 'Dokter';
+      case 'PHARMACIST': return 'Apoteker';
+      case 'RECEPTIONIST': return 'Staf';
+      case 'THERAPIST': return 'Terapis';
+      default: return role;
+    }
+  }
+
+  const getInitials = (name: string) => (name || '??').split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase();
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Memuat karyawan...</div>;
+  }
 
   return (
     <div className="p-margin max-w-container-max mx-auto w-full space-y-stack-lg pb-10">
@@ -132,17 +133,17 @@ export default function OwnerEmployeesPage() {
         </div>
         <div className="flex flex-col sm:flex-row items-center gap-3">
           <div className="flex items-center gap-2 bg-surface-container-low p-1.5 rounded-xl border border-outline-variant/30">
-            {(['All', 'Doctor', 'Pharmacist', 'Receptionist', 'Therapist'] as const).map(r => (
+            {(['All', 'DOCTOR', 'PHARMACIST', 'RECEPTIONIST', 'THERAPIST'] as const).map(r => (
               <button
                 key={r}
                 className={`px-3 py-1.5 rounded-lg font-label-md text-[12px] transition-colors ${roleFilter === r ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:bg-white/50'}`}
-                onClick={() => setRoleFilter(r)}
-              >{r === 'All' ? 'Semua' : r === 'Doctor' ? 'Dokter' : r === 'Pharmacist' ? 'Apoteker' : r === 'Receptionist' ? 'Resepsionis' : 'Terapis'}</button>
+                onClick={() => setRoleFilter(r as FilterRole)}
+              >{r === 'All' ? 'Semua' : formatRole(r as EmployeeRole)}</button>
             ))}
           </div>
           <button 
             className="bg-primary text-white px-4 py-2.5 rounded-xl font-label-md flex items-center gap-2 hover:bg-primary/90 shadow-md active:scale-95 transition-all"
-            onClick={() => { setEditingId(null); setFormData({ name: '', role: 'Doctor', specialty: '', joinDate: '', imageUrl: '' }); setShowModal(true); }}
+            onClick={() => { setEditingId(null); setFormData({ name: '', role: 'DOCTOR', specialty: '', joinDate: new Date().toISOString().split('T')[0], imageUrl: '' }); setShowModal(true); }}
           >
             <span className="material-symbols-outlined text-[18px]">person_add</span>
             Tambah Karyawan
@@ -157,7 +158,7 @@ export default function OwnerEmployeesPage() {
             <span className="material-symbols-outlined text-blue-600">stethoscope</span>
           </div>
           <div>
-            <p className="text-[28px] font-bold text-on-surface leading-none">{staff.filter(s => s.role === 'Doctor').length}</p>
+            <p className="text-[28px] font-bold text-on-surface leading-none">{staff.filter(s => s.role === 'DOCTOR').length}</p>
             <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider mt-1">Dokter</p>
           </div>
         </div>
@@ -166,7 +167,7 @@ export default function OwnerEmployeesPage() {
             <span className="material-symbols-outlined text-purple-600">medication</span>
           </div>
           <div>
-            <p className="text-[28px] font-bold text-on-surface leading-none">{staff.filter(s => s.role === 'Pharmacist').length}</p>
+            <p className="text-[28px] font-bold text-on-surface leading-none">{staff.filter(s => s.role === 'PHARMACIST').length}</p>
             <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider mt-1">Apoteker</p>
           </div>
         </div>
@@ -175,8 +176,8 @@ export default function OwnerEmployeesPage() {
             <span className="material-symbols-outlined text-amber-600">support_agent</span>
           </div>
           <div>
-            <p className="text-[28px] font-bold text-on-surface leading-none">{staff.filter(s => s.role === 'Receptionist').length}</p>
-            <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider mt-1">Resepsionis</p>
+            <p className="text-[28px] font-bold text-on-surface leading-none">{staff.filter(s => s.role === 'RECEPTIONIST').length}</p>
+            <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider mt-1">Staf (Resepsionis)</p>
           </div>
         </div>
         <div className="glass-card ambient-shadow p-6 rounded-2xl flex items-center gap-4">
@@ -184,7 +185,7 @@ export default function OwnerEmployeesPage() {
             <span className="material-symbols-outlined text-teal-600">spa</span>
           </div>
           <div>
-            <p className="text-[28px] font-bold text-on-surface leading-none">{staff.filter(s => s.role === 'Therapist').length}</p>
+            <p className="text-[28px] font-bold text-on-surface leading-none">{staff.filter(s => s.role === 'THERAPIST').length}</p>
             <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider mt-1">Terapis</p>
           </div>
         </div>
@@ -209,8 +210,8 @@ export default function OwnerEmployeesPage() {
                 <p className="text-[11px] text-on-surface-variant">{s.specialty}</p>
               </div>
               <div className="flex flex-col items-end gap-1.5">
-                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${getRoleColor(s.role)}`}>{s.role === 'Doctor' ? 'Dokter' : s.role === 'Pharmacist' ? 'Apoteker' : s.role === 'Receptionist' ? 'Resepsionis' : 'Terapis'}</span>
-                <span className={`w-2 h-2 rounded-full ${s.status === 'Active' ? 'bg-green-500' : 'bg-orange-400'}`}></span>
+                <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider border ${getRoleColor(s.role)}`}>{formatRole(s.role)}</span>
+                <span className={`w-2 h-2 rounded-full ${s.status === 'ACTIVE' ? 'bg-green-500' : 'bg-orange-400'}`}></span>
               </div>
             </div>
           ))}
@@ -236,10 +237,10 @@ export default function OwnerEmployeesPage() {
                   <h3 className="font-headline-md text-headline-md font-bold text-primary">{selected.name}</h3>
                   <p className="font-body-sm text-on-surface-variant">{selected.specialty}</p>
                   <div className="flex items-center gap-3 mt-2">
-                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getRoleColor(selected.role)}`}>{selected.role === 'Doctor' ? 'Dokter' : selected.role === 'Pharmacist' ? 'Apoteker' : selected.role === 'Receptionist' ? 'Resepsionis' : 'Terapis'}</span>
-                    <span className={`flex items-center gap-1 text-[11px] font-bold ${selected.status === 'Active' ? 'text-green-600' : 'text-orange-500'}`}>
-                      <span className={`w-2 h-2 rounded-full ${selected.status === 'Active' ? 'bg-green-500' : 'bg-orange-400'}`}></span>
-                      {selected.status === 'Active' ? 'Aktif' : 'Cuti'}
+                    <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider border ${getRoleColor(selected.role)}`}>{formatRole(selected.role)}</span>
+                    <span className={`flex items-center gap-1 text-[11px] font-bold ${selected.status === 'ACTIVE' ? 'text-green-600' : 'text-orange-500'}`}>
+                      <span className={`w-2 h-2 rounded-full ${selected.status === 'ACTIVE' ? 'bg-green-500' : 'bg-orange-400'}`}></span>
+                      {selected.status === 'ACTIVE' ? 'Aktif' : 'Cuti / Nonaktif'}
                     </span>
                   </div>
                 </div>
@@ -248,120 +249,149 @@ export default function OwnerEmployeesPage() {
               <div className="p-8 space-y-6">
                 {/* Stats */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20 text-center">
-                    <p className="text-[24px] font-bold text-on-surface leading-none">{selected.patientsSeen || '—'}</p>
-                    <p className="text-[10px] font-bold uppercase text-on-surface-variant tracking-wider mt-1">Pasien Ditangani</p>
+                  <div className="bg-surface-container-low p-4 rounded-xl border border-outline-variant/20 flex flex-col justify-center">
+                    <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider">Bergabung Sejak</p>
+                    <p className="font-headline-sm text-on-surface mt-1">{new Date(selected.joinDate).toLocaleDateString('id-ID', { month: 'short', year: 'numeric' })}</p>
                   </div>
-                  <div className="bg-surface-container-lowest p-4 rounded-xl border border-outline-variant/20 text-center">
-                    <p className="text-[24px] font-bold text-on-surface leading-none">{selected.joinDate.split(' ').pop()}</p>
-                    <p className="text-[10px] font-bold uppercase text-on-surface-variant tracking-wider mt-1">Tahun Bergabung</p>
-                  </div>
-                </div>
-
-                {/* Info */}
-                <div className="bg-surface-container-lowest p-5 rounded-xl border border-outline-variant/20">
-                  <h4 className="font-label-md text-label-md uppercase text-outline flex items-center gap-2 mb-3">
-                    <span className="material-symbols-outlined text-[18px]">info</span>
-                    Detail Kepegawaian
-                  </h4>
-                  <div className="grid grid-cols-2 gap-y-3 text-body-sm">
-                    <span className="text-on-surface-variant">ID Karyawan</span>
-                    <span className="text-on-surface font-bold font-mono">{selected.id}</span>
-                    <span className="text-on-surface-variant">Departemen</span>
-                    <span className="text-on-surface font-bold">{selected.role === 'Doctor' ? 'Medis' : selected.role === 'Pharmacist' ? 'Farmasi' : selected.role === 'Receptionist' ? 'Administrasi' : 'Klinis & Perawatan'}</span>
-                    <span className="text-on-surface-variant">Tanggal Bergabung</span>
-                    <span className="text-on-surface font-bold">{selected.joinDate}</span>
-                    <span className="text-on-surface-variant">Status</span>
-                    <span className={`font-bold ${selected.status === 'Active' ? 'text-green-600' : 'text-orange-500'}`}>{selected.status === 'Active' ? 'Aktif' : 'Cuti'}</span>
+                  <div className="bg-surface-container-low p-4 rounded-xl border border-outline-variant/20 flex flex-col justify-center">
+                    <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider">Pasien Ditangani</p>
+                    <p className="font-headline-sm text-on-surface mt-1">{selected.medicalRecords?.length || 0}</p>
                   </div>
                 </div>
 
-                {/* Actions */}
-                <div className="flex gap-3">
-                  <button
-                    className={`flex-1 py-3 rounded-xl font-label-md flex items-center justify-center gap-2 transition-all shadow-sm ${selected.status === 'Active' ? 'bg-orange-100 text-orange-700 border border-orange-200 hover:bg-orange-200' : 'bg-green-100 text-green-700 border border-green-200 hover:bg-green-200'}`}
-                    onClick={() => toggleStatus(selected.id)}
-                  >
-                    <span className="material-symbols-outlined text-[18px]">{selected.status === 'Active' ? 'pause_circle' : 'play_circle'}</span>
-                    {selected.status === 'Active' ? 'Atur Cuti' : 'Atur Aktif'}
-                  </button>
-                  <button
-                    className="flex-1 py-3 bg-primary-container text-primary rounded-xl font-label-md flex items-center justify-center gap-2 hover:bg-primary/20 transition-all shadow-sm"
-                    onClick={() => { setEditingId(selected.id); setFormData({ name: selected.name, role: selected.role, specialty: selected.specialty, joinDate: selected.joinDate, imageUrl: selected.imageUrl || '' }); setShowModal(true); }}
+                <div className="border-t border-outline-variant/30 pt-6 flex flex-wrap gap-3">
+                  <button 
+                    className="flex-1 py-2.5 bg-primary-container text-on-primary-container rounded-xl font-label-md hover:bg-primary/20 transition-colors flex items-center justify-center gap-2"
+                    onClick={() => {
+                      setEditingId(selected.id);
+                      setFormData({ 
+                        name: selected.name, 
+                        role: selected.role, 
+                        specialty: selected.specialty, 
+                        joinDate: new Date(selected.joinDate).toISOString().split('T')[0], 
+                        imageUrl: selected.imageUrl || '' 
+                      });
+                      setShowModal(true);
+                    }}
                   >
                     <span className="material-symbols-outlined text-[18px]">edit</span>
-                    Edit
+                    Edit Profil
                   </button>
-                  <button
-                    className="flex-1 py-3 bg-error-container text-error rounded-xl font-label-md flex items-center justify-center gap-2 hover:bg-error/20 transition-all shadow-sm"
+                  <button 
+                    className={`flex-1 py-2.5 rounded-xl font-label-md transition-colors flex items-center justify-center gap-2 ${selected.status === 'ACTIVE' ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' : 'bg-green-100 text-green-700 hover:bg-green-200'}`}
+                    onClick={() => toggleStatus(selected.id)}
+                  >
+                    <span className="material-symbols-outlined text-[18px]">{selected.status === 'ACTIVE' ? 'event_busy' : 'event_available'}</span>
+                    {selected.status === 'ACTIVE' ? 'Set Cuti' : 'Set Aktif'}
+                  </button>
+                  <button 
+                    className="w-12 h-10 flex items-center justify-center rounded-xl bg-error-container text-error hover:bg-error/20 transition-colors"
                     onClick={() => handleDelete(selected.id)}
+                    title="Hapus Karyawan"
                   >
                     <span className="material-symbols-outlined text-[18px]">delete</span>
-                    Hapus
                   </button>
                 </div>
               </div>
             </div>
           ) : (
-            <div className="glass-card ambient-shadow rounded-2xl p-12 text-center sticky top-24">
-              <span className="material-symbols-outlined text-[64px] text-outline-variant/40">person_search</span>
-              <p className="font-headline-sm text-headline-sm text-on-surface mt-4 mb-2">Belum Ada Karyawan Dipilih</p>
-              <p className="font-body-md text-on-surface-variant">Pilih anggota staf dari direktori untuk melihat profil dan metrik mereka.</p>
+            <div className="glass-card ambient-shadow rounded-2xl h-full min-h-[400px] flex flex-col items-center justify-center text-on-surface-variant">
+              <span className="material-symbols-outlined text-[64px] mb-4 text-outline-variant">person_search</span>
+              <p className="font-body-lg">Pilih karyawan untuk melihat detail</p>
             </div>
           )}
         </div>
       </div>
 
-      {/* Modal CRUD Karyawan */}
+      {/* Modal Tambah/Edit */}
       {showModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowModal(false)}>
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6" onClick={(e) => e.stopPropagation()}>
-            <div className="flex justify-between items-center">
-              <h3 className="font-headline-md text-headline-md text-primary">{editingId ? 'Edit Data Karyawan' : 'Tambah Karyawan Baru'}</h3>
-              <button className="text-on-surface-variant hover:text-error transition-colors" onClick={() => setShowModal(false)}>
-                <span className="material-symbols-outlined">close</span>
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-[500px] overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="px-6 py-4 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-low">
+              <h3 className="font-headline-sm text-on-surface">{editingId ? 'Edit Karyawan' : 'Tambah Karyawan Baru'}</h3>
+              <button onClick={() => setShowModal(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-outline-variant/20 text-on-surface-variant transition-colors">
+                <span className="material-symbols-outlined text-[20px]">close</span>
               </button>
             </div>
-            <div className="space-y-4">
-              <div className="flex flex-col items-center justify-center mb-6">
-                <label className="relative cursor-pointer group">
-                  <div className="w-24 h-24 rounded-full bg-surface-container-high border-2 border-dashed border-outline-variant/60 flex items-center justify-center overflow-hidden hover:border-primary transition-all">
-                    {formData.imageUrl ? (
-                      <img src={formData.imageUrl} alt="Preview" className="w-full h-full object-cover" />
-                    ) : (
-                      <span className="material-symbols-outlined text-[32px] text-outline-variant group-hover:text-primary transition-colors">add_a_photo</span>
-                    )}
+            <div className="p-6 overflow-y-auto space-y-4">
+              <div className="flex items-center gap-4 mb-2">
+                {formData.imageUrl ? (
+                  <img alt="Preview" className="w-16 h-16 rounded-full object-cover shadow-sm" src={formData.imageUrl} />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-surface-container flex items-center justify-center text-outline">
+                    <span className="material-symbols-outlined text-[24px]">add_a_photo</span>
                   </div>
-                  <input type="file" accept="image/*" className="hidden" onChange={handleImageUpload} />
-                </label>
-                <p className="text-[11px] text-on-surface-variant mt-2">Unggah Foto Profil</p>
+                )}
+                <div>
+                  <label className="text-primary font-label-md cursor-pointer hover:underline">
+                    Unggah Foto Profil
+                    <input type="file" className="hidden" accept="image/*" onChange={handleImageUpload} />
+                  </label>
+                  <p className="text-[11px] text-on-surface-variant mt-1">Opsional. Format JPG, PNG.</p>
+                </div>
               </div>
+
               <div>
-                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Nama Lengkap</label>
-                <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} placeholder="Masukkan nama karyawan" />
+                <label className="block text-[12px] font-bold uppercase tracking-wider text-on-surface-variant mb-1">Nama Lengkap</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                  placeholder="Contoh: Dr. Budi Santoso"
+                  value={formData.name}
+                  onChange={(e) => setFormData({...formData, name: e.target.value})}
+                />
               </div>
-              <div>
-                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Peran</label>
-                <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={formData.role} onChange={e => setFormData({ ...formData, role: e.target.value as StaffRole })}>
-                  <option value="Doctor">Dokter</option>
-                  <option value="Pharmacist">Apoteker</option>
-                  <option value="Receptionist">Resepsionis</option>
-                  <option value="Therapist">Terapis</option>
-                </select>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[12px] font-bold uppercase tracking-wider text-on-surface-variant mb-1">Peran</label>
+                  <select 
+                    className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all bg-white"
+                    value={formData.role}
+                    onChange={(e) => setFormData({...formData, role: e.target.value as EmployeeRole})}
+                  >
+                    <option value="DOCTOR">Dokter</option>
+                    <option value="PHARMACIST">Apoteker</option>
+                    <option value="RECEPTIONIST">Resepsionis / Staf</option>
+                    <option value="THERAPIST">Terapis</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-[12px] font-bold uppercase tracking-wider text-on-surface-variant mb-1">Tanggal Bergabung</label>
+                  <input 
+                    type="date" 
+                    className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                    value={formData.joinDate}
+                    onChange={(e) => setFormData({...formData, joinDate: e.target.value})}
+                  />
+                </div>
               </div>
+
               <div>
-                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Spesialisasi / Departemen</label>
-                <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={formData.specialty} onChange={e => setFormData({ ...formData, specialty: e.target.value })} placeholder="Contoh: Dermatologist" />
-              </div>
-              <div>
-                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Bulan/Tahun Bergabung</label>
-                <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" placeholder="Contoh: Jan 2024" value={formData.joinDate} onChange={e => setFormData({ ...formData, joinDate: e.target.value })} />
+                <label className="block text-[12px] font-bold uppercase tracking-wider text-on-surface-variant mb-1">Spesialisasi / Deskripsi Peran</label>
+                <input 
+                  type="text" 
+                  className="w-full px-4 py-2.5 rounded-xl border border-outline-variant/60 focus:border-primary focus:ring-2 focus:ring-primary/20 outline-none transition-all"
+                  placeholder="Contoh: Dokter Umum"
+                  value={formData.specialty}
+                  onChange={(e) => setFormData({...formData, specialty: e.target.value})}
+                />
               </div>
             </div>
-            <button className="w-full bg-primary text-white py-3.5 rounded-xl font-headline-sm text-[15px] hover:opacity-95 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2 mt-4" onClick={handleSave}>
-              <span className="material-symbols-outlined text-[20px]">{editingId ? 'save' : 'person_add'}</span>
-              {editingId ? 'Simpan Perubahan' : 'Tambah Karyawan'}
-            </button>
+            <div className="p-6 border-t border-outline-variant/30 bg-surface-container-low flex justify-end gap-3">
+              <button 
+                className="px-5 py-2 rounded-xl font-label-md text-on-surface-variant hover:bg-outline-variant/20 transition-colors"
+                onClick={() => setShowModal(false)}
+              >
+                Batal
+              </button>
+              <button 
+                className="px-5 py-2 rounded-xl font-label-md bg-primary text-white shadow-md hover:bg-primary/90 transition-all active:scale-95"
+                onClick={handleSave}
+              >
+                Simpan
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -1,20 +1,56 @@
 'use client';
 
-import { TRANSACTIONS, formatCurrency } from '../../../../../lib/mock-data';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
-import { use } from 'react';
+import { use, useEffect, useState } from 'react';
+import { getTransactionById } from '@/actions/transaction';
+import { formatCurrency } from '@/lib/utils';
+import { toast } from 'sonner';
 
 export default function InvoicePage({ params }: { params: Promise<{ id: string }> }) {
   const resolvedParams = use(params);
-  const transaction = TRANSACTIONS.find(t => t.id === resolvedParams.id);
-  
+  const [transaction, setTransaction] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchInvoice() {
+      try {
+        const data = await getTransactionById(resolvedParams.id);
+        if (!data) {
+          toast.error('Invoice tidak ditemukan');
+        }
+        setTransaction(data);
+      } catch (error) {
+        toast.error('Gagal memuat invoice');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchInvoice();
+  }, [resolvedParams.id]);
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Memuat invoice...</div>;
+  }
+
   if (!transaction) {
-    return notFound();
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center gap-4">
+        <p>Invoice tidak ditemukan.</p>
+        <Link href="/kasir/billing" className="text-primary underline">Kembali</Link>
+      </div>
+    );
   }
 
   const currentDate = new Date().toLocaleDateString('id-ID', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+  
+  const txDate = new Date(transaction.createdAt).toLocaleDateString('id-ID', {
+    weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
+  });
+  const txTime = new Date(transaction.createdAt).toLocaleTimeString('id-ID', {
+    hour: '2-digit', minute: '2-digit'
   });
 
   const handlePrint = () => {
@@ -57,13 +93,13 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
             <p className="text-on-surface-variant">No. Faktur</p>
             <p className="font-bold">{transaction.invoiceId}</p>
             <p className="text-on-surface-variant mt-2">Waktu Transaksi</p>
-            <p className="font-bold">{transaction.date === 'today' ? currentDate : transaction.date} • {transaction.time}</p>
+            <p className="font-bold">{txDate} • {txTime}</p>
           </div>
           <div className="text-right">
             <p className="text-on-surface-variant">Nama Pasien</p>
-            <p className="font-bold">{transaction.patientName}</p>
+            <p className="font-bold">{transaction.patient?.name || 'Retail / Non-Pasien'}</p>
             <p className="text-on-surface-variant mt-2">Metode Pembayaran</p>
-            <p className="font-bold uppercase">{transaction.method || '-'}</p>
+            <p className="font-bold uppercase">{transaction.paymentMethod || '-'}</p>
           </div>
         </div>
 
@@ -71,29 +107,36 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
         <div>
           <h3 className="font-bold text-[14px] uppercase tracking-wider mb-4">Rincian Layanan & Produk</h3>
           <div className="space-y-4 text-[13px]">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="font-bold">{transaction.service}</p>
-                <p className="text-[11px] text-on-surface-variant">Layanan Utama</p>
-              </div>
-            </div>
-
-            {transaction.products && transaction.products.map((p, i) => (
-              <div key={i} className="flex justify-between items-start pl-4 border-l-2 border-outline-variant/30">
+            {transaction.items.map((item: any) => (
+              <div key={item.id} className="flex justify-between items-start pl-4 border-l-2 border-outline-variant/30">
                 <div>
-                  <p>{p.name}</p>
-                  <p className="text-[11px] text-on-surface-variant">{p.qty} x {formatCurrency(p.price)}</p>
+                  <p className="font-bold">{item.itemName}</p>
+                  <p className="text-[11px] text-on-surface-variant">
+                    {item.itemType === 'SERVICE' ? 'Layanan Utama' : 'Produk'} • {item.quantity} x {formatCurrency(Number(item.unitPrice))}
+                  </p>
                 </div>
-                <p>{formatCurrency(p.price * p.qty)}</p>
+                <p>{formatCurrency(Number(item.subtotal))}</p>
               </div>
             ))}
           </div>
         </div>
 
         {/* Totals */}
-        <div className="pt-4 border-t-2 border-dashed border-outline-variant/50 flex justify-between items-center">
-          <span className="font-bold text-[16px] uppercase tracking-widest">Total Lunas</span>
-          <span className="font-bold text-[20px]">{formatCurrency(transaction.amount)}</span>
+        <div className="pt-4 border-t-2 border-dashed border-outline-variant/50">
+          <div className="flex justify-between items-center mb-2">
+            <span className="text-[14px] text-on-surface-variant">Subtotal</span>
+            <span>{formatCurrency(Number(transaction.subtotal))}</span>
+          </div>
+          {Number(transaction.discountAmount) > 0 && (
+            <div className="flex justify-between items-center mb-2 text-green-600">
+              <span className="text-[14px]">Diskon</span>
+              <span>-{formatCurrency(Number(transaction.discountAmount))}</span>
+            </div>
+          )}
+          <div className="flex justify-between items-center mt-4 pt-4 border-t border-outline-variant/30">
+            <span className="font-bold text-[16px] uppercase tracking-widest">Total Lunas</span>
+            <span className="font-bold text-[20px]">{formatCurrency(Number(transaction.totalAmount))}</span>
+          </div>
         </div>
 
         {/* Footer */}

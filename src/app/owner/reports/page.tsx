@@ -1,23 +1,27 @@
 'use client';
 
-import { TRANSACTIONS, PRODUCTS, PATIENTS, DOCTORS, formatCurrency } from '../../../lib/mock-data';
+import { useState, useEffect } from 'react';
+import { getGlobalReport } from '@/actions/dashboard';
+import { formatCurrency } from '@/lib/utils';
+import { toast } from 'sonner';
 
 export default function OwnerReportsPage() {
-  // Aggregate Financial Data
-  const paidTransactions = TRANSACTIONS.filter(t => t.status === 'Paid');
-  const totalRevenue = paidTransactions.reduce((acc, t) => acc + t.amount, 0);
-  const pendingRevenue = TRANSACTIONS.filter(t => t.status === 'Pending').reduce((acc, t) => acc + t.amount, 0);
-  
-  // Aggregate Inventory Data
-  const totalStockItems = PRODUCTS.reduce((acc, p) => acc + p.stock, 0);
-  const totalAssetValue = PRODUCTS.reduce((acc, p) => acc + (p.stock * p.price), 0);
-  const outOfStockItems = PRODUCTS.filter(p => p.stock === 0).length;
-  const lowStockItems = PRODUCTS.filter(p => p.stock > 0 && p.stock <= 10).length;
+  const [reportData, setReportData] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Aggregate Operational Data
-  const totalPatients = PATIENTS.length;
-  // Karyawan (Dokter + Apoteker(2) + Resepsionis(1))
-  const totalStaff = DOCTORS.length + 3;
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await getGlobalReport();
+        setReportData(data);
+      } catch (error) {
+        toast.error('Gagal memuat laporan');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, []);
 
   const handlePrint = () => {
     window.print();
@@ -26,6 +30,10 @@ export default function OwnerReportsPage() {
   const currentDate = new Date().toLocaleDateString('id-ID', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Memuat laporan...</div>;
+  }
 
   return (
     <div className="bg-white min-h-screen text-on-surface print:bg-white print:m-0 print:p-0">
@@ -67,12 +75,12 @@ export default function OwnerReportsPage() {
           <div className="grid grid-cols-2 gap-6">
             <div className="p-5 bg-surface-container-low border border-outline-variant/30 rounded-xl">
               <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider">Total Pendapatan Terbayar</p>
-              <p className="text-[28px] font-bold text-green-600 mt-1">{formatCurrency(totalRevenue)}</p>
-              <p className="text-[12px] text-on-surface-variant mt-2">Dari {paidTransactions.length} transaksi berhasil</p>
+              <p className="text-[28px] font-bold text-green-600 mt-1">{formatCurrency(reportData?.totalRevenue || 0)}</p>
+              <p className="text-[12px] text-on-surface-variant mt-2">Dari {reportData?.paidCount || 0} transaksi berhasil</p>
             </div>
             <div className="p-5 bg-surface-container-low border border-outline-variant/30 rounded-xl">
               <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider">Potensi Pendapatan (Tertunda)</p>
-              <p className="text-[28px] font-bold text-orange-500 mt-1">{formatCurrency(pendingRevenue)}</p>
+              <p className="text-[28px] font-bold text-orange-500 mt-1">{formatCurrency(reportData?.pendingRevenue || 0)}</p>
               <p className="text-[12px] text-on-surface-variant mt-2">Menunggu penyelesaian pembayaran</p>
             </div>
           </div>
@@ -86,15 +94,15 @@ export default function OwnerReportsPage() {
           </div>
           <div className="grid grid-cols-3 gap-4">
             <div className="p-4 bg-surface-container-low border border-outline-variant/30 rounded-xl text-center">
-              <p className="text-[24px] font-bold text-on-surface">{formatCurrency(totalAssetValue)}</p>
+              <p className="text-[24px] font-bold text-on-surface">{formatCurrency(reportData?.totalAssetValue || 0)}</p>
               <p className="text-[10px] font-bold uppercase text-on-surface-variant tracking-wider mt-1">Total Nilai Aset</p>
             </div>
             <div className="p-4 bg-surface-container-low border border-outline-variant/30 rounded-xl text-center">
-              <p className="text-[24px] font-bold text-on-surface">{totalStockItems} <span className="text-[14px] font-normal">Unit</span></p>
+              <p className="text-[24px] font-bold text-on-surface">{reportData?.totalStockItems || 0} <span className="text-[14px] font-normal">Unit</span></p>
               <p className="text-[10px] font-bold uppercase text-on-surface-variant tracking-wider mt-1">Total Kuantitas Barang</p>
             </div>
             <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-center">
-              <p className="text-[24px] font-bold text-red-600">{outOfStockItems} / {lowStockItems}</p>
+              <p className="text-[24px] font-bold text-red-600">{reportData?.outOfStock || 0} / {reportData?.lowStock || 0}</p>
               <p className="text-[10px] font-bold uppercase text-red-500 tracking-wider mt-1">Stok Habis / Menipis</p>
             </div>
           </div>
@@ -112,7 +120,7 @@ export default function OwnerReportsPage() {
                 <span className="material-symbols-outlined text-blue-600">badge</span>
               </div>
               <div>
-                <p className="text-[24px] font-bold text-on-surface leading-none">{totalStaff}</p>
+                <p className="text-[24px] font-bold text-on-surface leading-none">{reportData?.activeStaff || 0}</p>
                 <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider mt-1">Staf Aktif</p>
               </div>
             </div>
@@ -121,7 +129,7 @@ export default function OwnerReportsPage() {
                 <span className="material-symbols-outlined text-purple-600">recent_patient</span>
               </div>
               <div>
-                <p className="text-[24px] font-bold text-on-surface leading-none">{totalPatients}</p>
+                <p className="text-[24px] font-bold text-on-surface leading-none">{reportData?.totalPatients || 0}</p>
                 <p className="text-[11px] font-bold uppercase text-on-surface-variant tracking-wider mt-1">Pasien Terdaftar</p>
               </div>
             </div>

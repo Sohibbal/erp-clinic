@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { toast } from 'sonner';
-import { DUMMY_CREDENTIALS, type Role } from '../../../lib/mock-data';
+import { login } from '@/actions/auth';
+import type { UserRole } from '@/generated/prisma/client';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -13,10 +14,10 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
 
-  const roleRoutes: Record<Role, string> = {
-    kasir: '/kasir',
-    apoteker: '/apoteker',
-    owner: '/owner',
+  const roleRoutes: Record<UserRole, string> = {
+    KASIR: '/kasir',
+    APOTEKER: '/apoteker',
+    OWNER: '/owner',
   };
 
   const validate = () => {
@@ -41,21 +42,20 @@ export default function LoginPage() {
 
     setIsLoading(true);
 
-    await new Promise((resolve) => setTimeout(resolve, 1200));
+    try {
+      const result = await login(email, password);
 
-    const matched = DUMMY_CREDENTIALS.find(
-      (cred) => cred.email === email && cred.password === password
-    );
-
-    if (matched) {
-      toast.success(`Selamat datang! Masuk sebagai ${matched.role.charAt(0).toUpperCase() + matched.role.slice(1)}...`);
-      setTimeout(() => {
-        router.push(roleRoutes[matched.role]);
-      }, 600);
-    } else {
+      if (result.success && result.user) {
+        toast.success(`Selamat datang! Masuk sebagai ${result.user.role}...`);
+        router.push(roleRoutes[result.user.role]);
+      } else {
+        toast.error(result.error || 'Kredensial tidak valid. Silakan coba lagi.');
+        setErrors({ password: 'Email atau kata sandi salah' });
+      }
+    } catch (error) {
+      toast.error('Terjadi kesalahan. Silakan coba lagi nanti.');
+    } finally {
       setIsLoading(false);
-      toast.error('Kredensial tidak valid. Silakan coba lagi.');
-      setErrors({ password: 'Email atau kata sandi salah' });
     }
   };
 
@@ -185,7 +185,7 @@ export default function LoginPage() {
                 </div>
                 <span className="font-body-sm text-body-sm text-on-surface-variant group-hover:text-on-surface transition-colors">Ingat saya</span>
               </label>
-              <button type="button" className="font-label-md text-label-md text-primary hover:text-on-primary-fixed-variant transition-colors underline-offset-4 hover:underline" onClick={() => toast.info('Reset kata sandi tidak tersedia di mode demo.')}>
+              <button type="button" className="font-label-md text-label-md text-primary hover:text-on-primary-fixed-variant transition-colors underline-offset-4 hover:underline" onClick={() => toast.info('Fitur belum tersedia.')}>
                 Lupa Kata Sandi?
               </button>
             </div>
@@ -224,7 +224,7 @@ export default function LoginPage() {
           <button
             className="w-full py-2.5 bg-surface-container-lowest border border-outline-variant text-on-surface font-label-lg text-label-lg rounded-lg hover:bg-surface-container-low hover:border-outline transition-all duration-200 flex items-center justify-center gap-3"
             type="button"
-            onClick={() => toast.info('Google SSO tidak tersedia di mode demo.')}
+            onClick={() => toast.info('Google SSO tidak tersedia.')}
           >
             <img
               className="w-5 h-5"

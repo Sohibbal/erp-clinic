@@ -1,12 +1,20 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { TRANSACTIONS, SERVICES, PRODUCTS, PATIENTS, type Transaction, type PaymentMethod, formatCurrency } from '../../../lib/mock-data';
+import { getTransactions, processPayment } from '@/actions/transaction';
+import { getServices } from '@/actions/service';
+import { getProducts } from '@/actions/product';
+import { formatCurrency, formatDate } from '@/lib/utils';
+import type { PaymentMethod } from '@/generated/prisma/client';
 
 export default function BillingPage() {
-  const [transactions, setTransactions] = useState<Transaction[]>(TRANSACTIONS);
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  
   const [dateFilter, setDateFilter] = useState<'today' | 'yesterday' | 'all'>('today');
   const [search, setSearch] = useState('');
   
@@ -15,26 +23,56 @@ export default function BillingPage() {
   const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1);
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [selectedProducts, setSelectedProducts] = useState<{ id: string; qty: number }[]>([]);
-  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('Cash');
+  const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('CASH');
+
+  useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        const [txData, servicesData, productsData] = await Promise.all([
+          getTransactions(),
+          getServices(),
+          getProducts()
+        ]);
+        
+        setTransactions(txData);
+        setServices(servicesData);
+        setProducts(productsData);
+      } catch (error) {
+        toast.error('Gagal memuat data');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const todayStr = new Date().toDateString();
+  const yesterdayStr = new Date(Date.now() - 86400000).toDateString();
 
   const filtered = transactions
-    .filter(t => dateFilter === 'all' || t.date === dateFilter)
+    .filter(t => {
+      const tDate = new Date(t.createdAt).toDateString();
+      if (dateFilter === 'today') return tDate === todayStr;
+      if (dateFilter === 'yesterday') return tDate === yesterdayStr;
+      return true;
+    })
     .filter(t =>
-      t.patientName.toLowerCase().includes(search.toLowerCase()) ||
+      (t.patient?.name?.toLowerCase() || '').includes(search.toLowerCase()) ||
       t.invoiceId.toLowerCase().includes(search.toLowerCase())
     );
 
-  const todayTx = transactions.filter(t => t.date === 'today');
-  const totalRevenue = todayTx.filter(t => t.status === 'Paid').reduce((s, t) => s + t.amount, 0);
+  const todayTx = transactions.filter(t => new Date(t.createdAt).toDateString() === todayStr);
+  const totalRevenue = todayTx.filter(t => t.status === 'PAID').reduce((s, t) => s + Number(t.totalAmount), 0);
   const totalTransactions = todayTx.length;
-  const pendingCount = todayTx.filter(t => t.status === 'Pending').length;
+  const pendingCount = todayTx.filter(t => t.status === 'PENDING').length;
 
   const handleOpenProcessModal = (id: string) => {
     setProcessingId(id);
     setCheckoutStep(1);
-    setSelectedServiceId(SERVICES[0].id);
+    setSelectedServiceId(services[0]?.id || '');
     setSelectedProducts([]);
-    setSelectedMethod('Cash');
+    setSelectedMethod('CASH');
   };
 
   const toggleProduct = (productId: string) => {
@@ -46,48 +84,75 @@ export default function BillingPage() {
   };
 
   const calculateSubtotal = () => {
-    const service = SERVICES.find(s => s.id === selectedServiceId);
-    let total = service?.price || 0;
+    const service = services.find(s => s.id === selectedServiceId);
+    let total = Number(service?.basePrice || 0);
     
     selectedProducts.forEach(sp => {
-      const p = PRODUCTS.find(prod => prod.id === sp.id);
-      if (p) total += p.price * sp.qty;
+      const p = products.find(prod => prod.id === sp.id);
+      if (p) total += Number(p.price) * sp.qty;
     });
     return total;
   };
 
-  const confirmPayment = () => {
+  const confirmPayment = async () => {
     if (!processingId) return;
     
-    const service = SERVICES.find(s => s.id === selectedServiceId);
-    if (!service) return;
-
-    let icon = 'payments';
-    switch (selectedMethod) {
-      case 'QRIS': icon = 'qr_code_2'; break;
-      case 'Transfer': icon = 'account_balance'; break;
-      case 'Cash': icon = 'payments'; break;
+    const service = services.find(s => s.id === selectedServiceId);
+    
+    const items: any[] = [];
+    if (service) {
+      items.push({
+        itemType: 'SERVICE' as const,
+        serviceId: service.id,
+        itemName: service.name,
+        quantity: 1,
+        unitPrice: Number(service.basePrice)
+      });
     }
 
-    const finalProducts = selectedProducts.map(sp => {
-      const p = PRODUCTS.find(prod => prod.id === sp.id)!;
-      return { name: p.name, qty: sp.qty, price: p.price };
+    selectedProducts.forEach(sp => {
+      const p = products.find(prod => prod.id === sp.id);
+      if (p) {
+        items.push({
+          itemType: 'PRODUCT' as const,
+          productId: p.id,
+          itemName: p.name,
+          quantity: sp.qty,
+          unitPrice: Number(p.price)
+        });
+      }
     });
 
-    const finalAmount = calculateSubtotal();
-
-    setTransactions(prev => prev.map(t => t.id === processingId ? { 
-      ...t, 
-      status: 'Paid' as const, 
-      method: selectedMethod, 
-      methodIcon: icon,
-      service: service.name,
-      products: finalProducts,
-      amount: finalAmount
-    } : t));
-    
-    toast.success('Pembayaran berhasil diproses!');
-    setProcessingId(null);
+    try {
+      await processPayment(processingId, {
+        paymentMethod: selectedMethod,
+        items
+      });
+      
+      
+      setTransactions(prev => prev.map(t => {
+        if (t.id === processingId) {
+          return { 
+            ...t, 
+            status: 'PAID', 
+            paymentMethod: selectedMethod, 
+            totalAmount: calculateSubtotal(),
+            items: items.map(i => ({
+              itemType: i.itemType,
+              service: i.itemType === 'SERVICE' ? { name: i.itemName } : undefined,
+              product: i.itemType === 'PRODUCT' ? { name: i.itemName } : undefined,
+              quantity: i.quantity
+            }))
+          };
+        }
+        return t;
+      }));
+      
+      toast.success('Pembayaran berhasil diproses!');
+      setProcessingId(null);
+    } catch (error) {
+      toast.error('Gagal memproses pembayaran');
+    }
   };
 
   return (
@@ -163,42 +228,53 @@ export default function BillingPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/20">
-            {filtered.map(t => (
-              <tr key={t.id} className={`hover:bg-primary-container/5 transition-colors ${t.status === 'Pending' ? 'bg-surface-container-highest/20' : ''}`}>
-                <td className="px-6 py-4 font-body-sm text-on-surface-variant">{t.time}</td>
+            {filtered.map(t => {
+              const time = new Date(t.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+              const servicesList = t.items?.filter((i: any) => i.itemType === 'SERVICE') || [];
+              const productsList = t.items?.filter((i: any) => i.itemType === 'PRODUCT') || [];
+              
+              let methodIcon = 'payments';
+              if (t.paymentMethod === 'QRIS') methodIcon = 'qr_code_2';
+              else if (t.paymentMethod === 'TRANSFER') methodIcon = 'account_balance';
+              
+              return (
+              <tr key={t.id} className={`hover:bg-primary-container/5 transition-colors ${t.status === 'PENDING' ? 'bg-surface-container-highest/20' : ''}`}>
+                <td className="px-6 py-4 font-body-sm text-on-surface-variant">{time}</td>
                 <td className="px-6 py-4 font-body-md font-bold text-primary">{t.invoiceId}</td>
-                <td className="px-6 py-4 font-body-sm font-semibold text-on-surface">{t.patientName}</td>
+                <td className="px-6 py-4 font-body-sm font-semibold text-on-surface">{t.patient?.name || 'Umum'}</td>
                 <td className="px-6 py-4">
-                  <div className="font-body-md font-semibold text-on-surface">{t.service}</div>
-                  {t.products && t.products.length > 0 && (
+                  <div className="font-body-md font-semibold text-on-surface">
+                    {servicesList.length > 0 ? servicesList.map((s: any) => s.service?.name || s.itemName).join(', ') : 'Produk Saja'}
+                  </div>
+                  {productsList.length > 0 && (
                     <div className="mt-1 space-y-0.5">
-                      {t.products.map((p, i) => (
+                      {productsList.map((p: any, i: number) => (
                         <div key={i} className="text-[11px] text-on-surface-variant flex items-center gap-1 before:content-['•'] before:text-outline-variant">
-                          {p.name} <span className="text-outline">x{p.qty}</span>
+                          {p.product?.name || p.itemName} <span className="text-outline">x{p.quantity}</span>
                         </div>
                       ))}
                     </div>
                   )}
                 </td>
                 <td className="px-6 py-4">
-                  {t.method ? (
+                  {t.paymentMethod ? (
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[16px] text-on-surface-variant">{t.methodIcon}</span>
-                      <span className="font-body-sm text-on-surface-variant">{t.method}</span>
+                      <span className="material-symbols-outlined text-[16px] text-on-surface-variant">{methodIcon}</span>
+                      <span className="font-body-sm text-on-surface-variant">{t.paymentMethod}</span>
                     </div>
                   ) : <span className="font-body-sm text-on-surface-variant">-</span>}
                 </td>
-                <td className="px-6 py-4 font-body-md font-bold text-on-surface">{formatCurrency(t.amount)}</td>
+                <td className="px-6 py-4 font-body-md font-bold text-on-surface">{formatCurrency(Number(t.totalAmount || 0))}</td>
                 <td className="px-6 py-4">
-                  <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${t.status === 'Paid' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container-high text-on-surface-variant'}`}>{t.status === 'Paid' ? 'Lunas' : 'Tertunda'}</span>
+                  <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${t.status === 'PAID' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container-high text-on-surface-variant'}`}>{t.status === 'PAID' ? 'Lunas' : 'Tertunda'}</span>
                 </td>
                 <td className="px-6 py-4 text-center">
-                  <Link href={`/kasir/rekam-medis/${PATIENTS.find(p => p.name === t.patientName)?.noRM || 'RM-0001'}`} target="_blank" className="inline-flex items-center justify-center p-2 rounded-lg text-primary hover:bg-primary-container/30 transition-colors" title="Cetak Rekam Medis">
+                  <Link href={`/kasir/rekam-medis/${t.patient?.noRM || 'RM-0001'}`} target="_blank" className="inline-flex items-center justify-center p-2 rounded-lg text-primary hover:bg-primary-container/30 transition-colors" title="Cetak Rekam Medis">
                     <span className="material-symbols-outlined text-[20px]">description</span>
                   </Link>
                 </td>
                 <td className="px-6 py-4 text-right">
-                  {t.status === 'Paid' ? (
+                  {t.status === 'PAID' ? (
                     <Link href={`/kasir/billing/invoice/${t.id}`} className="p-2 inline-block hover:bg-primary-container/30 rounded-lg text-primary transition-all" title="Cetak Struk">
                       <span className="material-symbols-outlined text-[20px]">print</span>
                     </Link>
@@ -207,7 +283,8 @@ export default function BillingPage() {
                   )}
                 </td>
               </tr>
-            ))}
+              );
+            })}
             {filtered.length === 0 && (
               <tr><td colSpan={9} className="px-6 py-8 text-center text-on-surface-variant">Tidak ada transaksi ditemukan.</td></tr>
             )}
@@ -239,8 +316,8 @@ export default function BillingPage() {
                       value={selectedServiceId} 
                       onChange={e => setSelectedServiceId(e.target.value)}
                     >
-                      {SERVICES.map(s => (
-                        <option key={s.id} value={s.id}>{s.name} - {formatCurrency(s.price)}</option>
+                      {services.map(s => (
+                        <option key={s.id} value={s.id}>{s.name} - {formatCurrency(Number(s.basePrice || 0))}</option>
                       ))}
                     </select>
                   </div>
@@ -248,7 +325,7 @@ export default function BillingPage() {
                   <div>
                     <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-2">Tambah Produk Skincare (Opsional)</label>
                     <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                      {PRODUCTS.map(p => {
+                      {products.map(p => {
                         const isSelected = selectedProducts.some(sp => sp.id === p.id);
                         return (
                           <label key={p.id} className={`flex justify-between items-center p-3 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-primary bg-primary-container/10' : 'border-outline-variant/40 hover:bg-surface-container-low'}`}>
@@ -264,7 +341,7 @@ export default function BillingPage() {
                                 <p className="text-[11px] text-on-surface-variant">{p.category}</p>
                               </div>
                             </div>
-                            <span className="font-label-md text-primary">{formatCurrency(p.price)}</span>
+                            <span className="font-label-md text-primary">{formatCurrency(Number(p.price || 0))}</span>
                           </label>
                         );
                       })}
@@ -288,11 +365,11 @@ export default function BillingPage() {
 
                   <div className="space-y-3">
                     <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Pilih Metode Bayar</label>
-                    {(['QRIS', 'Transfer', 'Cash'] as PaymentMethod[]).map(method => (
+                    {(['QRIS', 'TRANSFER', 'CASH'] as PaymentMethod[]).map(method => (
                       <label key={method} className={`flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all ${selectedMethod === method ? 'border-primary bg-primary-container/10 shadow-sm' : 'border-outline-variant/40 hover:bg-surface-container-low'}`}>
                         <input type="radio" name="paymentMethod" value={method} checked={selectedMethod === method} onChange={(e) => setSelectedMethod(e.target.value as PaymentMethod)} className="text-primary focus:ring-primary w-4 h-4 cursor-pointer" />
                         <span className="font-label-md text-on-surface flex-1">{method}</span>
-                        <span className="material-symbols-outlined text-on-surface-variant">{method === 'QRIS' ? 'qr_code_2' : method === 'Transfer' ? 'account_balance' : 'payments'}</span>
+                        <span className="material-symbols-outlined text-on-surface-variant">{method === 'QRIS' ? 'qr_code_2' : method === 'TRANSFER' ? 'account_balance' : 'payments'}</span>
                       </label>
                     ))}
                   </div>

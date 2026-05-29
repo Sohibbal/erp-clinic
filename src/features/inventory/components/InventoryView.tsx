@@ -1,78 +1,102 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { PRODUCTS, type Product, type StockStatus, formatCurrency } from '../../../lib/mock-data';
+import { getProducts, createProduct, updateProduct, restockProduct } from '@/actions/product';
+import { formatCurrency } from '@/lib/utils';
+import type { StockStatus } from '@/generated/prisma/client';
 
 export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasir' | 'owner' }) {
-  const [products, setProducts] = useState<Product[]>(PRODUCTS);
+  const [products, setProducts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState<StockStatus | 'All'>('All');
+  const [statusFilter, setStatusFilter] = useState<StockStatus | 'ALL'>('ALL');
   const [showModal, setShowModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [newProduct, setNewProduct] = useState({ name: '', category: 'Skincare', stock: '', price: '' });
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  async function loadData() {
+    try {
+      setIsLoading(true);
+      const data = await getProducts();
+      setProducts(data);
+    } catch (error) {
+      toast.error('Gagal memuat produk');
+    } finally {
+      setIsLoading(false);
+    }
+  }
 
   const filtered = products
     .filter(p => p.name.toLowerCase().includes(search.toLowerCase()))
-    .filter(p => statusFilter === 'All' || p.status === statusFilter);
+    .filter(p => statusFilter === 'ALL' || p.stockStatus === statusFilter);
 
-  const statusFilters: (StockStatus | 'All')[] = ['All', 'In Stock', 'Low Stock', 'Expiring', 'Out of Stock'];
+  const statusFilters: (StockStatus | 'ALL')[] = ['ALL', 'IN_STOCK', 'LOW_STOCK', 'EXPIRING', 'OUT_OF_STOCK'];
 
   const getStatusBadge = (status: StockStatus) => {
     const map: Record<StockStatus, { bg: string; text: string }> = {
-      'In Stock': { bg: 'bg-primary-container', text: 'text-on-primary-container' },
-      'Low Stock': { bg: 'bg-error-container', text: 'text-on-error-container' },
-      'Expiring': { bg: 'bg-secondary-container', text: 'text-on-secondary-container' },
-      'Out of Stock': { bg: 'bg-error', text: 'text-white' },
+      'IN_STOCK': { bg: 'bg-primary-container', text: 'text-on-primary-container' },
+      'LOW_STOCK': { bg: 'bg-error-container', text: 'text-on-error-container' },
+      'EXPIRING': { bg: 'bg-secondary-container', text: 'text-on-secondary-container' },
+      'OUT_OF_STOCK': { bg: 'bg-error', text: 'text-white' },
     };
-    return map[status];
+    return map[status] || { bg: 'bg-gray-100', text: 'text-gray-700' };
   };
 
   const getDotColor = (status: StockStatus) => {
     const map: Record<StockStatus, string> = {
-      'In Stock': 'bg-primary', 'Low Stock': 'bg-error', 'Expiring': 'bg-secondary', 'Out of Stock': 'bg-error',
+      'IN_STOCK': 'bg-primary', 'LOW_STOCK': 'bg-error', 'EXPIRING': 'bg-secondary', 'OUT_OF_STOCK': 'bg-error',
     };
-    return map[status];
+    return map[status] || 'bg-gray-400';
   };
 
-  const handleSaveProduct = () => {
+  const handleSaveProduct = async () => {
     if (!newProduct.name) { toast.error('Nama produk wajib diisi.'); return; }
     
-    if (editingProductId) {
-      setProducts(prev => prev.map(p => {
-        if (p.id === editingProductId) {
-          return {
-            ...p,
-            name: newProduct.name,
-            category: newProduct.category,
-            stock: Number(newProduct.stock) || 0,
-            price: Number(newProduct.price) || 0,
-            status: Number(newProduct.stock) > 10 ? 'In Stock' : Number(newProduct.stock) > 0 ? 'Low Stock' : 'Out of Stock'
-          };
-        }
-        return p;
-      }));
-      toast.success(`Produk "${newProduct.name}" berhasil diperbarui!`);
-    } else {
-      const id = `P${String(products.length + 1).padStart(3, '0')}`;
-      const created: Product = {
-        id, name: newProduct.name, category: newProduct.category, stock: Number(newProduct.stock) || 0,
-        price: Number(newProduct.price) || 0, status: Number(newProduct.stock) > 10 ? 'In Stock' : Number(newProduct.stock) > 0 ? 'Low Stock' : 'Out of Stock',
-        icon: 'medication', batchNo: `NEW-${Date.now()}`, lastRestock: new Date().toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' }), expiryDate: 'Dec 2025',
-      };
-      setProducts(prev => [created, ...prev]);
-      toast.success(`Produk "${created.name}" berhasil ditambahkan!`);
+    try {
+      if (editingProductId) {
+        await updateProduct(editingProductId, {
+          name: newProduct.name,
+          category: newProduct.category,
+          stock: Number(newProduct.stock) || 0,
+          price: Number(newProduct.price) || 0,
+        });
+        toast.success(`Produk "${newProduct.name}" berhasil diperbarui!`);
+      } else {
+        await createProduct({
+          name: newProduct.name,
+          category: newProduct.category,
+          stock: Number(newProduct.stock) || 0,
+          price: Number(newProduct.price) || 0,
+        });
+        toast.success(`Produk "${newProduct.name}" berhasil ditambahkan!`);
+      }
+      setShowModal(false);
+      setNewProduct({ name: '', category: 'Skincare', stock: '', price: '' });
+      setEditingProductId(null);
+      await loadData();
+    } catch (error) {
+      toast.error('Gagal menyimpan produk');
     }
-    
-    setShowModal(false);
-    setNewProduct({ name: '', category: 'Skincare', stock: '', price: '' });
-    setEditingProductId(null);
   };
 
-  const handleRestock = (id: string) => {
-    setProducts(prev => prev.map(p => p.id === id ? { ...p, stock: p.stock + 10, status: 'In Stock' as const } : p));
-    toast.success('Stok produk berhasil ditambah (+10 unit)!');
+  const handleRestock = async (id: string) => {
+    try {
+      await restockProduct(id, 10);
+      toast.success('Stok produk berhasil ditambah (+10 unit)!');
+      await loadData();
+    } catch (error) {
+      toast.error('Gagal menambah stok');
+    }
   };
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Memuat inventaris...</div>;
+  }
 
   return (
     <div className="p-margin max-w-container-max mx-auto w-full space-y-stack-lg">
@@ -102,22 +126,22 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
       {/* Status Filter Tabs */}
       <div className="flex gap-2 flex-wrap">
         {statusFilters.map(f => (
-          <button key={f} className={`px-4 py-2 rounded-full font-label-md text-label-md transition-all ${statusFilter === f ? 'bg-primary text-white shadow-md' : 'bg-surface-container-low border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-high'}`} onClick={() => setStatusFilter(f)}>{f === 'All' ? 'Semua' : f === 'In Stock' ? 'Tersedia' : f === 'Low Stock' ? 'Stok Menipis' : f === 'Expiring' ? 'Akan Kedaluwarsa' : 'Habis'}</button>
+          <button key={f} className={`px-4 py-2 rounded-full font-label-md text-label-md transition-all ${statusFilter === f ? 'bg-primary text-white shadow-md' : 'bg-surface-container-low border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-high'}`} onClick={() => setStatusFilter(f)}>{f === 'ALL' ? 'Semua' : f === 'IN_STOCK' ? 'Tersedia' : f === 'LOW_STOCK' ? 'Stok Menipis' : f === 'EXPIRING' ? 'Akan Kedaluwarsa' : 'Habis'}</button>
         ))}
       </div>
 
       {/* Product Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-gutter">
         {filtered.map(p => {
-          const badge = getStatusBadge(p.status);
-          const dot = getDotColor(p.status);
+          const badge = getStatusBadge(p.stockStatus);
+          const dot = getDotColor(p.stockStatus);
           return (
-            <div key={p.id} className={`glass-card ambient-shadow p-5 rounded-2xl flex flex-col gap-4 border transition-all group ${p.status === 'Out of Stock' ? 'border-error/30 bg-surface-container-lowest opacity-80 hover:opacity-100' : 'border-outline-variant/40 hover:border-primary/40 bg-white/60'}`}>
+            <div key={p.id} className={`glass-card ambient-shadow p-5 rounded-2xl flex flex-col gap-4 border transition-all group ${p.stockStatus === 'OUT_OF_STOCK' ? 'border-error/30 bg-surface-container-lowest opacity-80 hover:opacity-100' : 'border-outline-variant/40 hover:border-primary/40 bg-white/60'}`}>
               <div className="flex justify-between items-start">
                 <div className="w-14 h-14 rounded-xl bg-surface-container-highest flex items-center justify-center text-primary group-hover:scale-110 transition-transform duration-300">
-                  <span className="material-symbols-outlined text-[28px]">{p.icon}</span>
+                  <span className="material-symbols-outlined text-[28px]">{p.icon || 'medication'}</span>
                 </div>
-                <span className={`${badge.bg} ${badge.text} text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider`}>{p.status === 'In Stock' ? 'Tersedia' : p.status === 'Low Stock' ? 'Stok Menipis' : p.status === 'Expiring' ? 'Akan Kedaluwarsa' : 'Habis'}</span>
+                <span className={`${badge.bg} ${badge.text} text-[10px] font-bold px-2 py-1 rounded-md uppercase tracking-wider`}>{p.stockStatus === 'IN_STOCK' ? 'Tersedia' : p.stockStatus === 'LOW_STOCK' ? 'Stok Menipis' : p.stockStatus === 'EXPIRING' ? 'Akan Kedaluwarsa' : 'Habis'}</span>
               </div>
               <div>
                 <h4 className="font-headline-sm text-[18px] text-on-surface font-bold leading-tight mb-1">{p.name}</h4>
@@ -129,13 +153,13 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
               <div className="pt-4 border-t border-outline-variant/30 flex justify-between items-center mt-auto">
                 <div>
                   <p className="text-[10px] text-on-surface-variant uppercase tracking-wider">Harga per unit</p>
-                  <span className="font-label-md text-primary font-bold text-[14px]">{formatCurrency(p.price)}</span>
+                  <span className="font-label-md text-primary font-bold text-[14px]">{formatCurrency(Number(p.price || 0))}</span>
                 </div>
                 <div className="flex gap-1">
                   {role === 'apoteker' && (
                     <button className="p-2 hover:bg-primary-container/30 rounded-lg text-primary transition-all" title="Edit Produk" onClick={() => {
                       setEditingProductId(p.id);
-                      setNewProduct({ name: p.name, category: p.category, stock: p.stock.toString(), price: p.price.toString() });
+                      setNewProduct({ name: p.name, category: p.category, stock: p.stock.toString(), price: Number(p.price || 0).toString() });
                       setShowModal(true);
                     }}>
                       <span className="material-symbols-outlined text-[20px]">edit</span>

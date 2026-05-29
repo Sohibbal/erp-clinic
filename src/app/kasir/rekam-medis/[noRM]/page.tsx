@@ -1,16 +1,39 @@
 'use client';
 
-import { PATIENTS } from '../../../../lib/mock-data';
 import { notFound } from 'next/navigation';
-import { use } from 'react';
+import { use, useEffect, useState } from 'react';
+import { getPatientByNoRM } from '@/actions/patient';
+import { formatDate } from '@/lib/utils';
 
 export default function RekamMedisPrintPage({ params }: { params: Promise<{ noRM: string }> }) {
   const resolvedParams = use(params);
-  const patient = PATIENTS.find(p => p.noRM === resolvedParams.noRM);
+  const [patient, setPatient] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
   
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await getPatientByNoRM(resolvedParams.noRM);
+        setPatient(data);
+      } catch (error) {
+        console.error('Gagal memuat rekam medis', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [resolvedParams.noRM]);
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center text-black">Memuat data...</div>;
+  }
+
   if (!patient) {
     return notFound();
   }
+
+  const age = patient.dateOfBirth ? new Date().getFullYear() - new Date(patient.dateOfBirth).getFullYear() : 0;
+  const historyCount = patient.medicalRecords?.length || 0;
 
   const handlePrint = () => {
     window.print();
@@ -18,7 +41,6 @@ export default function RekamMedisPrintPage({ params }: { params: Promise<{ noRM
 
   // Ensure there are at least 8 rows for the form to look like a full page without spilling to page 2
   const minRows = 8;
-  const historyCount = patient.medicalHistory.length;
   const blankRows = Math.max(0, minRows - historyCount);
 
   return (
@@ -57,13 +79,13 @@ export default function RekamMedisPrintPage({ params }: { params: Promise<{ noRM
             <span>No. RM</span> <span>: {patient.noRM}</span>
             <span>Nama</span> <span>: {patient.name}</span>
             <span>NIK</span> <span>: {patient.nik || '-'}</span>
-            <span>Tanggal Lahir / Umur</span> <span>: {patient.dob} / {patient.age} thn</span>
-            <span>Jenis Kelamin</span> <span>: {patient.gender === 'Female' ? 'Perempuan' : 'Laki-laki'}</span>
+            <span>Tanggal Lahir / Umur</span> <span>: {patient.dateOfBirth ? formatDate(patient.dateOfBirth) : '-'} / {age} thn</span>
+            <span>Jenis Kelamin</span> <span>: {patient.gender === 'FEMALE' ? 'Perempuan' : 'Laki-laki'}</span>
           </div>
           <div className="grid grid-cols-[130px_auto]">
-            <span>Pekerjaan</span> <span>: {patient.pekerjaan || '-'}</span>
-            <span>Nama Wali</span> <span>: {patient.namaWali || '-'}</span>
-            <span>Alamat</span> <span>: -</span>
+            <span>Pekerjaan</span> <span>: {patient.occupation || '-'}</span>
+            <span>Nama Wali</span> <span>: {patient.guardianName || '-'}</span>
+            <span>Alamat</span> <span>: {patient.address || '-'}</span>
             <span>No. HP</span> <span>: {patient.phone || '-'}</span>
             <span>Alergi Obat</span> <span>: {patient.allergies || '-'}</span>
           </div>
@@ -80,15 +102,15 @@ export default function RekamMedisPrintPage({ params }: { params: Promise<{ noRM
             </tr>
           </thead>
           <tbody>
-            {patient.medicalHistory.map((record, i) => (
+            {(patient.medicalRecords || []).map((record: any, i: number) => (
               <tr key={i}>
-                <td className="border border-black p-2 align-top text-[13px]">{record.date}</td>
+                <td className="border border-black p-2 align-top text-[13px]">{formatDate(record.visitDate)}</td>
                 <td className="border border-black p-2 align-top text-[13px]">
-                  <span className="font-semibold">{record.doctor}</span><br/>
-                  {record.notes}
+                  <span className="font-semibold">{record.doctor?.name || '-'}</span><br/>
+                  {record.notes || '-'}
                 </td>
                 <td className="border border-black p-2 align-top text-[13px]"></td>
-                <td className="border border-black p-2 align-top text-[13px]">{record.treatment}</td>
+                <td className="border border-black p-2 align-top text-[13px]">{record.treatment || '-'}</td>
               </tr>
             ))}
             {Array.from({ length: blankRows }).map((_, i) => (

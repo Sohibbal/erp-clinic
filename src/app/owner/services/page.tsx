@@ -1,13 +1,16 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { SERVICES, PRODUCTS, type Service, formatCurrency } from '../../../lib/mock-data';
+import { formatCurrency } from '@/lib/utils';
+import { getServices, createService, updateService, deleteService } from '@/actions/service';
+import type { DiscountType } from '@/generated/prisma/client';
 
 export default function OwnerServicesPage() {
-  const [services, setServices] = useState<Service[]>(SERVICES);
-  const [selectedId, setSelectedId] = useState<string | null>('S001');
+  const [services, setServices] = useState<any[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   // CRUD State
   const [showModal, setShowModal] = useState(false);
@@ -16,98 +19,111 @@ export default function OwnerServicesPage() {
     name: string;
     price: string;
     promoActive: boolean;
-    promoType: 'percentage' | 'fixed';
+    promoType: 'PERCENTAGE' | 'FIXED';
     promoValue: string;
   }>({
     name: '',
     price: '',
     promoActive: false,
-    promoType: 'percentage',
+    promoType: 'PERCENTAGE',
     promoValue: '',
   });
 
+  useEffect(() => {
+    loadData();
+  }, [search]);
+
+  async function loadData() {
+    try {
+      setIsLoading(true);
+      const data = await getServices(search);
+      setServices(data);
+      if (data.length > 0 && !selectedId && !search) {
+        setSelectedId(data[0].id);
+      }
+    } catch (error) {
+      toast.error('Gagal memuat layanan');
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
   const selected = services.find(s => s.id === selectedId);
 
-  const filtered = services.filter(s =>
-    s.name.toLowerCase().includes(search.toLowerCase()) ||
-    s.id.toLowerCase().includes(search.toLowerCase())
-  );
-
-  const getProductStock = (productName: string) => {
-    const prod = PRODUCTS.find(p => p.name === productName);
-    return prod ? { stock: prod.stock, status: prod.status } : { stock: -1, status: 'Unknown' };
-  };
-
-  const calculateFinalPrice = (service: Service) => {
-    if (!service.promo?.active) return service.price;
-    if (service.promo.discountType === 'percentage') {
-      return service.price - (service.price * (service.promo.discountValue / 100));
+  const calculateFinalPrice = (service: any) => {
+    const promo = service.promotions?.[0];
+    if (!promo?.isActive) return Number(service.basePrice);
+    const base = Number(service.basePrice);
+    const discount = Number(promo.discountValue);
+    if (promo.discountType === 'PERCENTAGE') {
+      return base - (base * (discount / 100));
     }
-    return Math.max(0, service.price - service.promo.discountValue);
+    return Math.max(0, base - discount);
   };
 
   const openAddModal = () => {
     setEditingId(null);
-    setFormData({ name: '', price: '', promoActive: false, promoType: 'percentage', promoValue: '' });
+    setFormData({ name: '', price: '', promoActive: false, promoType: 'PERCENTAGE', promoValue: '' });
     setShowModal(true);
   };
 
-  const openEditModal = (service: Service) => {
+  const openEditModal = (service: any) => {
     setEditingId(service.id);
+    const promo = service.promotions?.[0];
     setFormData({
       name: service.name,
-      price: service.price.toString(),
-      promoActive: service.promo?.active ?? false,
-      promoType: service.promo?.discountType ?? 'percentage',
-      promoValue: (service.promo?.discountValue ?? '').toString(),
+      price: service.basePrice.toString(),
+      promoActive: promo?.isActive ?? false,
+      promoType: (promo?.discountType as 'PERCENTAGE' | 'FIXED') ?? 'PERCENTAGE',
+      promoValue: (promo?.discountValue ?? '').toString(),
     });
     setShowModal(true);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name || !formData.price) {
       toast.error('Nama layanan dan harga dasar wajib diisi.');
       return;
     }
 
-    const priceNum = Number(formData.price) || 0;
-    const promoValNum = Number(formData.promoValue) || 0;
-
-    const promoData = {
-      active: formData.promoActive,
-      discountType: formData.promoType,
-      discountValue: promoValNum,
-    };
-
-    if (editingId) {
-      setServices(prev => prev.map(s => s.id === editingId ? {
-        ...s,
-        name: formData.name,
-        price: priceNum,
-        promo: promoData
-      } : s));
-      toast.success('Layanan berhasil diperbarui!');
-    } else {
-      const newId = `S${String(services.length + 1).padStart(3, '0')}`;
-      const newService: Service = {
-        id: newId,
-        name: formData.name,
-        price: priceNum,
-        promo: promoData,
-        linkedProducts: [],
-      };
-      setServices(prev => [...prev, newService]);
-      setSelectedId(newId);
-      toast.success('Layanan baru berhasil ditambahkan!');
+    try {
+      if (editingId) {
+        await updateService(editingId, {
+          name: formData.name,
+          basePrice: Number(formData.price),
+          promoActive: formData.promoActive,
+          promoType: formData.promoType as DiscountType,
+          promoValue: Number(formData.promoValue),
+        });
+        toast.success('Layanan berhasil diperbarui!');
+      } else {
+        const newService = await createService({
+          name: formData.name,
+          basePrice: Number(formData.price),
+          promoActive: formData.promoActive,
+          promoType: formData.promoType as DiscountType,
+          promoValue: Number(formData.promoValue),
+        });
+        setSelectedId(newService.id);
+        toast.success('Layanan baru berhasil ditambahkan!');
+      }
+      setShowModal(false);
+      await loadData();
+    } catch (error) {
+      toast.error('Gagal menyimpan layanan');
     }
-    setShowModal(false);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Yakin ingin menghapus layanan ini? Seluruh pemetaan produk akan ikut terhapus.')) {
-      setServices(prev => prev.filter(s => s.id !== id));
-      if (selectedId === id) setSelectedId(null);
-      toast.success('Layanan berhasil dihapus.');
+      try {
+        await deleteService(id);
+        if (selectedId === id) setSelectedId(null);
+        toast.success('Layanan berhasil dihapus.');
+        await loadData();
+      } catch (error) {
+        toast.error('Gagal menghapus layanan');
+      }
     }
   };
 
@@ -146,10 +162,13 @@ export default function OwnerServicesPage() {
       <div className="grid grid-cols-12 gap-gutter">
         {/* Left: Service List */}
         <div className="col-span-12 lg:col-span-5 space-y-3">
-          {filtered.map(s => {
+          {isLoading && services.length === 0 ? (
+            <div className="p-8 text-center text-on-surface-variant">Memuat layanan...</div>
+          ) : services.map(s => {
             const isSelected = selectedId === s.id;
             const finalPrice = calculateFinalPrice(s);
-            const hasPromo = s.promo?.active;
+            const promo = s.promotions?.[0];
+            const hasPromo = promo?.isActive;
 
             return (
               <div
@@ -165,30 +184,30 @@ export default function OwnerServicesPage() {
                   <div className="flex flex-col items-end">
                     {hasPromo ? (
                       <>
-                        <span className="text-[11px] text-on-surface-variant line-through">{formatCurrency(s.price)}</span>
+                        <span className="text-[11px] text-on-surface-variant line-through">{formatCurrency(Number(s.basePrice))}</span>
                         <span className="text-[14px] font-bold text-green-600">{formatCurrency(finalPrice)}</span>
                       </>
                     ) : (
-                      <span className="text-[14px] font-bold text-primary">{formatCurrency(s.price)}</span>
+                      <span className="text-[14px] font-bold text-primary">{formatCurrency(Number(s.basePrice))}</span>
                     )}
                   </div>
                 </div>
                 <div className="mt-3 pt-3 border-t border-outline-variant/20 flex justify-between items-center">
                   <div className="flex items-center gap-2">
                     <span className="material-symbols-outlined text-[16px] text-on-surface-variant">link</span>
-                    <span className="text-[11px] font-bold text-primary bg-primary-container/30 px-2 py-0.5 rounded-full">{s.linkedProducts.length} produk terhubung</span>
+                    <span className="text-[11px] font-bold text-primary bg-primary-container/30 px-2 py-0.5 rounded-full">{s.linkedProducts?.length || 0} produk terhubung</span>
                   </div>
                   {hasPromo && (
                     <span className="text-[10px] bg-red-100 text-red-600 font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
                       <span className="material-symbols-outlined text-[12px]">local_offer</span>
-                      {s.promo!.discountType === 'percentage' ? `${s.promo!.discountValue}% OFF` : `Promo`}
+                      {promo.discountType === 'PERCENTAGE' ? `${promo.discountValue}% OFF` : `Promo`}
                     </span>
                   )}
                 </div>
               </div>
             );
           })}
-          {filtered.length === 0 && (
+          {!isLoading && services.length === 0 && (
             <div className="p-8 text-center text-on-surface-variant bg-white rounded-2xl border border-outline-variant/20">
               Tidak ada layanan yang cocok dengan "{search}"
             </div>
@@ -207,16 +226,16 @@ export default function OwnerServicesPage() {
                   </p>
                 </div>
                 <div className="text-right bg-white p-3 rounded-xl border border-outline-variant/20 shadow-sm">
-                  {selected.promo?.active ? (
+                  {selected.promotions?.[0]?.isActive ? (
                     <>
                       <p className="text-[12px] text-on-surface-variant uppercase tracking-wider mb-0.5 font-bold">Harga Promo</p>
                       <p className="text-[20px] font-bold text-green-600 leading-none mb-1">{formatCurrency(calculateFinalPrice(selected))}</p>
-                      <p className="text-[12px] text-on-surface-variant line-through">{formatCurrency(selected.price)}</p>
+                      <p className="text-[12px] text-on-surface-variant line-through">{formatCurrency(Number(selected.basePrice))}</p>
                     </>
                   ) : (
                     <>
                       <p className="text-[12px] text-on-surface-variant uppercase tracking-wider mb-0.5 font-bold">Harga Normal</p>
-                      <p className="text-[20px] font-bold text-primary leading-none">{formatCurrency(selected.price)}</p>
+                      <p className="text-[20px] font-bold text-primary leading-none">{formatCurrency(Number(selected.basePrice))}</p>
                     </>
                   )}
                 </div>
@@ -235,11 +254,12 @@ export default function OwnerServicesPage() {
                   </div>
 
                   <div className="border-t border-dashed border-outline-variant/30 pt-4 space-y-3">
-                    {selected.linkedProducts.length > 0 ? selected.linkedProducts.map((prod, idx) => {
-                      const stockInfo = getProductStock(prod.name);
-                      const stockColor = stockInfo.status === 'In Stock' ? 'text-green-600 bg-green-100' :
-                                         stockInfo.status === 'Low Stock' ? 'text-orange-600 bg-orange-100' :
-                                         stockInfo.status === 'Out of Stock' ? 'text-red-600 bg-red-100' :
+                    {selected.linkedProducts?.length > 0 ? selected.linkedProducts.map((link: any, idx: number) => {
+                      const prod = link.product;
+                      const stockStatus = prod.stockStatus;
+                      const stockColor = stockStatus === 'IN_STOCK' ? 'text-green-600 bg-green-100' :
+                                         stockStatus === 'LOW_STOCK' ? 'text-orange-600 bg-orange-100' :
+                                         stockStatus === 'OUT_OF_STOCK' ? 'text-red-600 bg-red-100' :
                                          'text-on-surface-variant bg-surface-container';
                       return (
                         <div key={idx} className="flex items-center gap-4 p-4 bg-white rounded-xl border border-outline-variant/20 shadow-sm">
@@ -248,18 +268,16 @@ export default function OwnerServicesPage() {
                           </div>
                           <div className="flex-1">
                             <p className="font-body-md font-bold text-on-surface">{prod.name}</p>
-                            <p className="text-[11px] text-on-surface-variant">{prod.description}</p>
+                            <p className="text-[11px] text-on-surface-variant">{link.description || 'Tidak ada deskripsi'}</p>
                           </div>
                           <div className="flex items-center gap-3">
                             <div className="text-center">
                               <span className="text-[10px] uppercase text-outline-variant tracking-wider block">Jml/Pakai</span>
-                              <span className="font-bold text-on-surface text-[16px]">x{prod.defaultQty}</span>
+                              <span className="font-bold text-on-surface text-[16px]">x{link.defaultQty}</span>
                             </div>
-                            {stockInfo.stock >= 0 && (
-                              <div className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${stockColor}`}>
-                                {stockInfo.stock} tersisa
-                              </div>
-                            )}
+                            <div className={`px-2.5 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${stockColor}`}>
+                              {prod.stock} tersisa
+                            </div>
                           </div>
                         </div>
                       );
@@ -358,10 +376,10 @@ export default function OwnerServicesPage() {
                       <select 
                         className="w-full py-2.5 px-3 bg-white border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-[14px]"
                         value={formData.promoType}
-                        onChange={(e) => setFormData({ ...formData, promoType: e.target.value as 'percentage' | 'fixed' })}
+                        onChange={(e) => setFormData({ ...formData, promoType: e.target.value as 'PERCENTAGE' | 'FIXED' })}
                       >
-                        <option value="percentage">Persentase (%)</option>
-                        <option value="fixed">Nominal (Rp)</option>
+                        <option value="PERCENTAGE">Persentase (%)</option>
+                        <option value="FIXED">Nominal (Rp)</option>
                       </select>
                     </div>
                     <div>
@@ -371,7 +389,7 @@ export default function OwnerServicesPage() {
                         className="w-full py-2.5 px-3 bg-white border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-[14px]" 
                         value={formData.promoValue} 
                         onChange={e => setFormData({ ...formData, promoValue: e.target.value })} 
-                        placeholder={formData.promoType === 'percentage' ? "e.g., 20" : "e.g., 50000"} 
+                        placeholder={formData.promoType === 'PERCENTAGE' ? "e.g., 20" : "e.g., 50000"} 
                       />
                     </div>
                   </div>

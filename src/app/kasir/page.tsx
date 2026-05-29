@@ -1,20 +1,104 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { PATIENTS, TRANSACTIONS, type Patient, type Transaction } from '../../lib/mock-data';
+import { getPatients, createPatient } from '@/actions/patient';
+import { getDoctors, getTherapists } from '@/actions/employee';
+import { addToQueue } from '@/actions/queue';
+import { formatDate, getInitials } from '@/lib/utils';
+import type { PatientStatus } from '@/generated/prisma/client';
+
+// Define the mapped type for the UI
+type MappedPatient = {
+  id: string;
+  name: string;
+  initials: string;
+  age: number;
+  gender: string;
+  phone: string;
+  dob: string;
+  allergies: string;
+  registeredDate: string;
+  status: string;
+  lastVisitDate: string;
+  lastVisitTreatment: string;
+  medicalHistory: { date: string; doctor: string; treatment: string; notes: string }[];
+  noRM: string;
+  nik: string;
+  namaWali?: string;
+  pekerjaan?: string;
+};
 
 export default function KasirDashboard() {
-  const [patients, setPatients] = useState<Patient[]>(PATIENTS);
-  const [selectedNoRM, setSelectedNoRM] = useState<string>('RM-0001');
+  const [patients, setPatients] = useState<MappedPatient[]>([]);
+  const [doctors, setDoctors] = useState<{id: string, name: string}[]>([]);
+  const [therapists, setTherapists] = useState<{id: string, name: string}[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedNoRM, setSelectedNoRM] = useState<string>('');
   const [search, setSearch] = useState('');
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showQueueModal, setShowQueueModal] = useState(false);
-  const [queueData, setQueueData] = useState({ doctor: 'Dr. Elena', therapist: 'Anna Kusuma (Terapis)' });
-  const [newPatient, setNewPatient] = useState({ name: '', phone: '', dob: '', gender: 'Female' as 'Male' | 'Female', allergies: '', noRM: '', nik: '', namaWali: '', pekerjaan: '' });
+  const [queueData, setQueueData] = useState({ doctorId: '', therapistId: '' });
+  const [newPatient, setNewPatient] = useState({ name: '', phone: '', dob: '', gender: 'FEMALE' as 'MALE' | 'FEMALE', allergies: '', noRM: '', nik: '', namaWali: '', pekerjaan: '' });
   const router = useRouter();
+
+  useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        const [patientsData, doctorsData, therapistsData] = await Promise.all([
+          getPatients(),
+          getDoctors(),
+          getTherapists()
+        ]);
+        
+        const mappedPatients: MappedPatient[] = patientsData.map(p => {
+          const lastRecord = p.medicalRecords[0];
+          const age = p.dateOfBirth ? new Date().getFullYear() - p.dateOfBirth.getFullYear() : 0;
+          return {
+            id: p.id,
+            name: p.name,
+            initials: getInitials(p.name),
+            age,
+            gender: p.gender === 'FEMALE' ? 'Female' : 'Male',
+            phone: p.phone || '',
+            dob: formatDate(p.dateOfBirth),
+            allergies: p.allergies || 'None',
+            registeredDate: formatDate(p.registeredAt),
+            status: p.status === 'NEW_PATIENT' ? 'New Patient' : 'Returning',
+            lastVisitDate: lastRecord ? formatDate(lastRecord.visitDate) : 'New',
+            lastVisitTreatment: lastRecord?.treatment || '-',
+            medicalHistory: p.medicalRecords.map(r => ({
+              date: formatDate(r.visitDate),
+              doctor: r.doctor?.name || 'Unknown',
+              treatment: r.treatment || '-',
+              notes: r.notes || ''
+            })),
+            noRM: p.noRM,
+            nik: p.nik || '',
+            namaWali: p.guardianName || undefined,
+            pekerjaan: p.occupation || undefined,
+          };
+        });
+        
+        setPatients(mappedPatients);
+        setDoctors(doctorsData);
+        setTherapists(therapistsData);
+        
+        if (mappedPatients.length > 0 && !selectedNoRM) {
+          setSelectedNoRM(mappedPatients[0].noRM);
+        }
+        if (doctorsData.length > 0) setQueueData(prev => ({ ...prev, doctorId: doctorsData[0].id }));
+        if (therapistsData.length > 0) setQueueData(prev => ({ ...prev, therapistId: therapistsData[0].id }));
+      } catch (error) {
+        toast.error('Gagal memuat data pasien');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [selectedNoRM]); // Initial load only, selectedNoRM handled safely inside
 
   const selected = patients.find(p => p.noRM === selectedNoRM);
   const filtered = patients.filter(p =>
@@ -24,48 +108,72 @@ export default function KasirDashboard() {
     p.phone.includes(search)
   );
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
     if (!newPatient.name || !newPatient.phone || !newPatient.noRM || !newPatient.nik) {
       toast.error('Nama Lengkap, Telepon, No. RM, dan NIK wajib diisi.');
       return;
     }
-    const initials = newPatient.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
-    const created: Patient = {
-      name: newPatient.name, initials, age: 0, gender: newPatient.gender,
-      phone: newPatient.phone, dob: newPatient.dob || '-', allergies: newPatient.allergies || 'None',
-      registeredDate: new Date().toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
-      status: 'New Patient', lastVisitDate: 'New', lastVisitTreatment: '-', medicalHistory: [],
-      noRM: newPatient.noRM, nik: newPatient.nik, namaWali: newPatient.namaWali, pekerjaan: newPatient.pekerjaan
-    };
-    setPatients(prev => [created, ...prev]);
-    setSelectedNoRM(newPatient.noRM);
-    setShowRegisterModal(false);
-    setNewPatient({ name: '', phone: '', dob: '', gender: 'Female', allergies: '', noRM: '', nik: '', namaWali: '', pekerjaan: '' });
-    toast.success(`Pasien ${created.name} berhasil didaftarkan!`);
+    
+    try {
+      const created = await createPatient({
+        noRM: newPatient.noRM,
+        nik: newPatient.nik,
+        name: newPatient.name,
+        gender: newPatient.gender,
+        phone: newPatient.phone,
+        dateOfBirth: newPatient.dob || undefined,
+        allergies: newPatient.allergies,
+        guardianName: newPatient.namaWali,
+        occupation: newPatient.pekerjaan
+      });
+      
+      const mapped: MappedPatient = {
+        id: created.id,
+        name: created.name,
+        initials: getInitials(created.name),
+        age: created.dateOfBirth ? new Date().getFullYear() - created.dateOfBirth.getFullYear() : 0,
+        gender: created.gender === 'FEMALE' ? 'Female' : 'Male',
+        phone: created.phone || '',
+        dob: formatDate(created.dateOfBirth),
+        allergies: created.allergies || 'None',
+        registeredDate: formatDate(created.registeredAt),
+        status: 'New Patient',
+        lastVisitDate: 'New',
+        lastVisitTreatment: '-',
+        medicalHistory: [],
+        noRM: created.noRM,
+        nik: created.nik || '',
+        namaWali: created.guardianName || undefined,
+        pekerjaan: created.occupation || undefined
+      };
+      
+      setPatients(prev => [mapped, ...prev]);
+      setSelectedNoRM(mapped.noRM);
+      setShowRegisterModal(false);
+      setNewPatient({ name: '', phone: '', dob: '', gender: 'FEMALE', allergies: '', noRM: '', nik: '', namaWali: '', pekerjaan: '' });
+      toast.success(`Pasien ${mapped.name} berhasil didaftarkan!`);
+    } catch (error) {
+      toast.error('Gagal mendaftar pasien. Mungkin No RM / NIK sudah ada.');
+    }
   };
 
-  const handleAddToQueue = () => {
+  const handleAddToQueue = async () => {
     if (!selected) return;
     
-    // Create pending transaction to simulate queue
-    const newTx: Transaction = {
-      id: `T${String(TRANSACTIONS.length + 1).padStart(3, '0')}`,
-      invoiceId: `#INV-${Date.now().toString().slice(-6)}`,
-      patientName: selected.name,
-      service: selected.lastVisitTreatment !== '-' ? selected.lastVisitTreatment : 'General Consultation',
-      amount: Math.floor(Math.random() * 500000) + 150000, // random amount for mock
-      method: null,
-      methodIcon: '',
-      status: 'Pending',
-      time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      date: 'today'
-    };
-    
-    TRANSACTIONS.unshift(newTx);
-    
-    toast.success(`${selected.name} berhasil ditambahkan ke antrean (Dokter: ${queueData.doctor}, Terapis: ${queueData.therapist})!`);
-    setShowQueueModal(false);
-    router.push('/kasir/billing');
+    try {
+      await addToQueue({
+        patientId: selected.id,
+        doctorId: queueData.doctorId || undefined,
+        therapistId: queueData.therapistId || undefined,
+        serviceName: selected.lastVisitTreatment !== '-' ? selected.lastVisitTreatment : 'General Consultation'
+      });
+      
+      toast.success(`${selected.name} berhasil ditambahkan ke antrean!`);
+      setShowQueueModal(false);
+      router.push('/kasir/billing');
+    } catch (error) {
+      toast.error('Gagal menambahkan ke antrean');
+    }
   };
 
   return (
@@ -247,9 +355,9 @@ export default function KasirDashboard() {
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Jenis Kelamin</label>
-                  <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" value={newPatient.gender} onChange={(e) => setNewPatient(prev => ({ ...prev, gender: e.target.value as 'Male' | 'Female' }))}>
-                    <option value="Female">Perempuan</option>
-                    <option value="Male">Laki-laki</option>
+                  <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" value={newPatient.gender} onChange={(e) => setNewPatient(prev => ({ ...prev, gender: e.target.value as 'MALE' | 'FEMALE' }))}>
+                    <option value="FEMALE">Perempuan</option>
+                    <option value="MALE">Laki-laki</option>
                   </select>
                 </div>
                 <div>
@@ -288,18 +396,20 @@ export default function KasirDashboard() {
             <div className="space-y-4">
               <div>
                 <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Pilih Dokter</label>
-                <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={queueData.doctor} onChange={e => setQueueData({ ...queueData, doctor: e.target.value })}>
-                  <option value="Dr. Elena">Dr. Elena (Dermatologist)</option>
-                  <option value="Dr. James">Dr. James (Aesthetician)</option>
+                <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={queueData.doctorId} onChange={e => setQueueData({ ...queueData, doctorId: e.target.value })}>
+                  <option value="">Tanpa Dokter</option>
+                  {doctors.map(doc => (
+                    <option key={doc.id} value={doc.id}>{doc.name}</option>
+                  ))}
                 </select>
               </div>
               <div>
                 <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Pilih Terapis</label>
-                <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={queueData.therapist} onChange={e => setQueueData({ ...queueData, therapist: e.target.value })}>
-                  <option value="Anna Kusuma (Terapis)">Anna Kusuma</option>
-                  <option value="Maya Sari (Terapis)">Maya Sari</option>
-                  <option value="Siti Aminah (Terapis)">Siti Aminah</option>
-                  <option value="Tidak Perlu Terapis">Tanpa Terapis</option>
+                <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={queueData.therapistId} onChange={e => setQueueData({ ...queueData, therapistId: e.target.value })}>
+                  <option value="">Tanpa Terapis</option>
+                  {therapists.map(therapist => (
+                    <option key={therapist.id} value={therapist.id}>{therapist.name}</option>
+                  ))}
                 </select>
               </div>
             </div>

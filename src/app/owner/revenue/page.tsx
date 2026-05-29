@@ -1,35 +1,57 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { TRANSACTIONS, formatCurrency } from '../../../lib/mock-data';
+import { getTransactions } from '@/actions/transaction';
+import { formatCurrency } from '@/lib/utils';
+import type { PaymentMethod, TransactionStatus } from '@/generated/prisma/client';
 
-type FilterMethod = 'All' | 'QRIS' | 'Credit Card' | 'Transfer' | 'Cash';
-type FilterStatus = 'All' | 'Paid' | 'Pending';
+type FilterMethod = 'All' | 'QRIS' | 'TRANSFER' | 'CASH';
+type FilterStatus = 'All' | 'PAID' | 'PENDING';
 
 export default function OwnerRevenuePage() {
   const [methodFilter, setMethodFilter] = useState<FilterMethod>('All');
   const [statusFilter, setStatusFilter] = useState<FilterStatus>('All');
   const [search, setSearch] = useState('');
+  
+  const [transactions, setTransactions] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const filtered = TRANSACTIONS.filter(tx => {
-    if (methodFilter !== 'All' && tx.method !== methodFilter) return false;
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const data = await getTransactions();
+        setTransactions(data);
+      } catch (error) {
+        toast.error('Gagal memuat data transaksi');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const filtered = transactions.filter(tx => {
+    if (methodFilter !== 'All' && tx.paymentMethod !== methodFilter) return false;
     if (statusFilter !== 'All' && tx.status !== statusFilter) return false;
-    if (search && !tx.patientName.toLowerCase().includes(search.toLowerCase()) && !tx.invoiceId.toLowerCase().includes(search.toLowerCase())) return false;
+    if (search && !(tx.patient?.name?.toLowerCase() || '').includes(search.toLowerCase()) && !tx.invoiceId.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
 
-  const totalRevenue = filtered.reduce((sum, tx) => tx.status === 'Paid' ? sum + tx.amount : sum, 0);
-  const totalPending = filtered.reduce((sum, tx) => tx.status === 'Pending' ? sum + tx.amount : sum, 0);
-  const paidCount = filtered.filter(tx => tx.status === 'Paid').length;
-  const pendingCount = filtered.filter(tx => tx.status === 'Pending').length;
+  const totalRevenue = filtered.reduce((sum, tx) => tx.status === 'PAID' ? sum + Number(tx.totalAmount) : sum, 0);
+  const totalPending = filtered.reduce((sum, tx) => tx.status === 'PENDING' ? sum + Number(tx.totalAmount) : sum, 0);
+  const paidCount = filtered.filter(tx => tx.status === 'PAID').length;
+  const pendingCount = filtered.filter(tx => tx.status === 'PENDING').length;
 
   const methodIcons: Record<string, string> = {
     'QRIS': 'qr_code_2',
-    'Credit Card': 'credit_card',
-    'Transfer': 'account_balance',
-    'Cash': 'payments',
+    'TRANSFER': 'account_balance',
+    'CASH': 'payments',
   };
+
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Memuat data...</div>;
+  }
 
   return (
     <div className="p-margin max-w-container-max mx-auto w-full space-y-stack-lg pb-10">
@@ -103,7 +125,7 @@ export default function OwnerRevenuePage() {
           />
         </div>
         <div className="flex items-center gap-2 bg-surface-container-low p-1.5 rounded-xl border border-outline-variant/30">
-          {(['All', 'QRIS', 'Credit Card', 'Transfer', 'Cash'] as FilterMethod[]).map(m => (
+          {(['All', 'QRIS', 'TRANSFER', 'CASH'] as FilterMethod[]).map(m => (
             <button
               key={m}
               className={`px-3 py-1.5 rounded-lg font-label-md text-[12px] transition-colors ${methodFilter === m ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:bg-white/50'}`}
@@ -112,7 +134,7 @@ export default function OwnerRevenuePage() {
           ))}
         </div>
         <div className="flex items-center gap-2 bg-surface-container-low p-1.5 rounded-xl border border-outline-variant/30">
-          {(['All', 'Paid', 'Pending'] as FilterStatus[]).map(s => (
+          {(['All', 'PAID', 'PENDING'] as FilterStatus[]).map(s => (
             <button
               key={s}
               className={`px-3 py-1.5 rounded-lg font-label-md text-[12px] transition-colors ${statusFilter === s ? 'bg-white shadow-sm text-primary' : 'text-on-surface-variant hover:bg-white/50'}`}
@@ -129,7 +151,7 @@ export default function OwnerRevenuePage() {
             <tr>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Faktur</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Pasien</th>
-              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Layanan</th>
+              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Layanan / Produk</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Metode</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Jumlah</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Status</th>
@@ -141,21 +163,23 @@ export default function OwnerRevenuePage() {
                 <td className="px-6 py-4">
                   <span className="font-mono text-[12px] text-on-surface-variant bg-surface-container px-2 py-0.5 rounded">{tx.invoiceId}</span>
                 </td>
-                <td className="px-6 py-4 font-body-md font-bold text-on-surface">{tx.patientName}</td>
-                <td className="px-6 py-4 font-body-sm text-on-surface-variant">{tx.service}</td>
+                <td className="px-6 py-4 font-body-md font-bold text-on-surface">{tx.patient?.name || 'Umum'}</td>
+                <td className="px-6 py-4 font-body-sm text-on-surface-variant">
+                  {tx.items?.map((item: any) => item.service?.name || item.product?.name || item.itemName).join(', ') || '-'}
+                </td>
                 <td className="px-6 py-4">
-                  {tx.method ? (
+                  {tx.paymentMethod ? (
                     <div className="flex items-center gap-2">
-                      <span className="material-symbols-outlined text-[18px] text-on-surface-variant">{methodIcons[tx.method] || 'help'}</span>
-                      <span className="font-body-sm text-on-surface">{tx.method}</span>
+                      <span className="material-symbols-outlined text-[18px] text-on-surface-variant">{methodIcons[tx.paymentMethod] || 'help'}</span>
+                      <span className="font-body-sm text-on-surface">{tx.paymentMethod}</span>
                     </div>
                   ) : (
                     <span className="text-on-surface-variant text-body-sm italic">—</span>
                   )}
                 </td>
-                <td className="px-6 py-4 text-right font-headline-sm text-primary font-bold">{formatCurrency(tx.amount)}</td>
+                <td className="px-6 py-4 text-right font-headline-sm text-primary font-bold">{formatCurrency(Number(tx.totalAmount || 0))}</td>
                 <td className="px-6 py-4 text-right">
-                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${tx.status === 'Paid' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200'}`}>
+                  <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border ${tx.status === 'PAID' ? 'bg-green-100 text-green-700 border-green-200' : 'bg-orange-100 text-orange-700 border-orange-200'}`}>
                     {tx.status}
                   </span>
                 </td>

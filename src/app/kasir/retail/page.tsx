@@ -1,23 +1,43 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { PRODUCTS, formatCurrency, type Product } from '../../../lib/mock-data';
+import { getProducts } from '@/actions/product';
+import { createTransaction, processPayment } from '@/actions/transaction';
+import { formatCurrency } from '@/lib/utils';
+import type { PaymentMethod } from '@/generated/prisma/client';
 
 export default function KasirRetailPage() {
-  const [cart, setCart] = useState<{ product: Product; qty: number }[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [cart, setCart] = useState<{ product: any; qty: number }[]>([]);
   const [search, setSearch] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<'qris' | 'transfer' | 'cash'>('qris');
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('QRIS');
+  const [isLoading, setIsLoading] = useState(true);
 
-  const availableProducts = PRODUCTS.filter(p => p.status !== 'Out of Stock');
+  useEffect(() => {
+    async function loadData() {
+      setIsLoading(true);
+      try {
+        const data = await getProducts();
+        setProducts(data);
+      } catch (error) {
+        toast.error('Gagal memuat produk');
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, []);
+
+  const availableProducts = products.filter(p => p.stockStatus !== 'OUT_OF_STOCK');
   const filteredProducts = availableProducts.filter(p => 
     p.name.toLowerCase().includes(search.toLowerCase()) || 
     p.category.toLowerCase().includes(search.toLowerCase())
   );
 
-  const subtotal = cart.reduce((sum, item) => sum + (item.product.price * item.qty), 0);
+  const subtotal = cart.reduce((sum, item) => sum + (Number(item.product.price) * item.qty), 0);
 
-  const addToCart = (product: Product) => {
+  const addToCart = (product: any) => {
     setCart(prev => {
       const existing = prev.find(item => item.product.id === product.id);
       if (existing) {
@@ -40,7 +60,7 @@ export default function KasirRetailPage() {
       removeFromCart(productId);
       return;
     }
-    const product = PRODUCTS.find(p => p.id === productId);
+    const product = products.find(p => p.id === productId);
     if (product && qty > product.stock) {
       toast.error(`Cannot exceed available stock (${product.stock} units).`);
       return;
@@ -48,16 +68,43 @@ export default function KasirRetailPage() {
     setCart(prev => prev.map(item => item.product.id === productId ? { ...item, qty } : item));
   };
 
-  const handleCheckout = () => {
+  const handleCheckout = async () => {
     if (cart.length === 0) return;
-    toast.success('Transaksi retail berhasil diproses!');
-    setCart([]);
+    
+    try {
+      const items = cart.map(item => ({
+        itemType: 'PRODUCT' as const,
+        productId: item.product.id,
+        itemName: item.product.name,
+        quantity: item.qty,
+        unitPrice: Number(item.product.price)
+      }));
+
+      const transaction = await createTransaction({
+        transactionType: 'RETAIL',
+        items
+      });
+
+      await processPayment(transaction.id, {
+        paymentMethod,
+        items
+      });
+
+      toast.success('Transaksi retail berhasil diproses!');
+      setCart([]);
+      
+      // refresh products stock
+      const data = await getProducts();
+      setProducts(data);
+    } catch (error) {
+      toast.error('Gagal memproses transaksi retail');
+    }
   };
 
   const paymentMethods = [
-    { id: 'qris' as const, icon: 'qr_code_2', label: 'QRIS' },
-    { id: 'transfer' as const, icon: 'account_balance', label: 'Transfer' },
-    { id: 'cash' as const, icon: 'payments', label: 'Cash' },
+    { id: 'QRIS' as PaymentMethod, icon: 'qr_code_2', label: 'QRIS' },
+    { id: 'TRANSFER' as PaymentMethod, icon: 'account_balance', label: 'Transfer' },
+    { id: 'CASH' as PaymentMethod, icon: 'payments', label: 'Cash' },
   ];
 
   return (
@@ -104,7 +151,7 @@ export default function KasirRetailPage() {
                     <p className="text-[11px] text-on-surface-variant mt-1">{product.stock} tersisa • {product.category}</p>
                   </div>
                   <div className="mt-auto pt-2 border-t border-outline-variant/20">
-                    <span className="font-label-md text-primary font-bold">{formatCurrency(product.price)}</span>
+                    <span className="font-label-md text-primary font-bold">{formatCurrency(Number(product.price || 0))}</span>
                   </div>
                 </div>
               ))}
@@ -136,7 +183,7 @@ export default function KasirRetailPage() {
                   <div key={item.product.id} className="flex items-center gap-3 p-3 bg-white border border-outline-variant/40 rounded-xl shadow-sm">
                     <div className="flex-1 min-w-0">
                       <h4 className="font-label-md text-on-surface font-semibold truncate">{item.product.name}</h4>
-                      <p className="text-[12px] text-primary">{formatCurrency(item.product.price)}</p>
+                      <p className="text-[12px] text-primary">{formatCurrency(Number(item.product.price || 0))}</p>
                     </div>
                     <div className="flex items-center gap-2 bg-surface-container-low rounded-lg p-1">
                       <button 
