@@ -108,9 +108,9 @@ After running the seed script, you can log in using the following default accoun
 
 | Role | Email | Password |
 | :--- | :--- | :--- |
-| **Owner** | `owner@aura.com` | `aura123` |
-| **Kasir** | `kasir@aura.com` | `aura123` |
-| **Apoteker** | `apoteker@aura.com` | `aura123` |
+| **Owner** | `owner@sunrise.com` | `aura123` |
+| **Kasir** | `kasir@sunrise.com` | `aura123` |
+| **Apoteker** | `apoteker@sunrise.com` | `aura123` |
 
 *(Note: Ensure you change these credentials in a production environment)*
 
