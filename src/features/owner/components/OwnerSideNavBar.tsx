@@ -2,9 +2,18 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { getCurrentUserProfile } from '@/actions/auth';
 
 export function OwnerSideNavBar() {
   const pathname = usePathname();
+  const [profile, setProfile] = useState<{name: string, initials: string, imageUrl?: string | null} | null>(null);
+
+  useEffect(() => {
+    getCurrentUserProfile('OWNER').then(data => {
+      if (data) setProfile(data);
+    });
+  }, []);
 
   return (
     <aside className="fixed left-0 top-0 flex flex-col h-screen py-stack-lg bg-[#F7F0E7] border-r border-outline-variant/30 shadow-sm w-64 z-50 print:hidden">
@@ -86,10 +95,21 @@ export function OwnerSideNavBar() {
           <span className="material-symbols-outlined">settings</span>
           <span className="font-label-md text-label-md">Pengaturan</span>
         </Link>
-        <Link href="/login" className="text-on-surface-variant mx-2 my-1 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all cursor-pointer">
-          <span className="material-symbols-outlined text-[20px]">supervised_user_circle</span>
-          <span className="font-label-md text-label-md">Ganti Peran</span>
-        </Link>
+        <div className="px-4 mt-auto mb-4">
+          <div className="pt-4 border-t border-outline-variant/30 space-y-1">
+            <button 
+              onClick={async () => {
+                const { logout } = await import('@/actions/auth');
+                await logout('OWNER');
+                window.location.href = '/login';
+              }}
+              className="w-full text-left text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[20px]">logout</span>
+              <span className="font-label-md text-label-md">Keluar</span>
+            </button>
+          </div>
+        </div>
       </nav>
 
       <div className="px-4 mb-stack-lg">
@@ -101,9 +121,15 @@ export function OwnerSideNavBar() {
 
       <div className="border-t border-outline-variant/30 p-4 mt-auto">
         <div className="flex items-center gap-3 p-2 rounded-2xl bg-surface-container-low/50 border border-outline-variant/10">
-          <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold">JD</div>
+          <div className="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container font-bold overflow-hidden border border-outline-variant/20 shrink-0">
+            {profile?.imageUrl ? (
+              <img src={profile.imageUrl} alt={profile.name} className="w-full h-full object-cover" />
+            ) : (
+              profile?.initials || 'JD'
+            )}
+          </div>
           <div className="flex-1 overflow-hidden">
-            <p className="font-label-md text-label-md text-on-surface truncate">Jane Doe</p>
+            <p className="font-label-md text-label-md text-on-surface truncate">{profile?.name || 'Memuat...'}</p>
             <p className="font-body-sm text-[10px] text-primary uppercase tracking-wider font-semibold">Pemilik Klinik</p>
           </div>
           <button className="text-on-surface-variant hover:text-primary">

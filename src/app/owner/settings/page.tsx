@@ -21,6 +21,9 @@ export default function OwnerSettingsPage() {
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingHours, setEditingHours] = useState(false);
 
+  // Reset Password Modal State
+  const [resetModal, setResetModal] = useState({ isOpen: false, userId: '', email: '', newPass: '' });
+
   useEffect(() => {
     loadData();
   }, []);
@@ -82,9 +85,17 @@ export default function OwnerSettingsPage() {
     setHours(prev => prev.map((h, i) => i === idx ? { ...h, [field]: value } : h));
   };
 
-  const handleResetPassword = async (userId: string, email: string) => {
-    const newPass = prompt(`Masukkan kata sandi baru untuk ${email}:`);
-    if (!newPass) return;
+  const openResetModal = (userId: string, email: string) => {
+    setResetModal({ isOpen: true, userId, email, newPass: '' });
+  };
+
+  const handleConfirmReset = async () => {
+    const { userId, email, newPass } = resetModal;
+    
+    if (!newPass) {
+      toast.error('Kata sandi tidak boleh kosong.');
+      return;
+    }
     
     if (newPass.length < 6) {
       toast.error('Kata sandi harus minimal 6 karakter.');
@@ -94,6 +105,7 @@ export default function OwnerSettingsPage() {
     try {
       await resetPassword(userId, newPass);
       toast.success(`Kata sandi untuk ${email} berhasil direset.`);
+      setResetModal({ isOpen: false, userId: '', email: '', newPass: '' });
     } catch (error) {
       toast.error('Gagal mereset kata sandi');
     }
@@ -292,7 +304,7 @@ export default function OwnerSettingsPage() {
                   <td className="px-4 py-4 text-right">
                     <button
                       className="px-3 py-1.5 bg-surface-container-high text-on-surface-variant rounded-lg font-label-md text-[11px] hover:bg-surface-container-highest transition-colors"
-                      onClick={() => handleResetPassword(acc.id, acc.email)}
+                      onClick={() => openResetModal(acc.id, acc.email)}
                     >
                       Reset Kata Sandi
                     </button>
@@ -303,6 +315,63 @@ export default function OwnerSettingsPage() {
           </table>
         </div>
       </div>
+
+      {/* Reset Password Modal */}
+      {resetModal.isOpen && (
+        <div 
+          className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" 
+          onClick={() => setResetModal({ isOpen: false, userId: '', email: '', newPass: '' })}
+        >
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex justify-between items-center border-b border-outline-variant/30 pb-4">
+              <h3 className="font-headline-md text-headline-md text-primary flex items-center gap-2">
+                <span className="material-symbols-outlined text-[24px]">lock_reset</span>
+                Reset Kata Sandi
+              </h3>
+              <button 
+                className="text-on-surface-variant hover:text-error transition-colors" 
+                onClick={() => setResetModal({ isOpen: false, userId: '', email: '', newPass: '' })}
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            
+            <div className="space-y-4">
+              <div>
+                <p className="font-body-sm text-on-surface-variant mb-4">
+                  Masukkan kata sandi baru untuk akun: <br/>
+                  <strong className="text-on-surface">{resetModal.email}</strong>
+                </p>
+                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Kata Sandi Baru</label>
+                <input 
+                  type="password" 
+                  className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" 
+                  placeholder="Minimal 6 karakter"
+                  value={resetModal.newPass} 
+                  onChange={(e) => setResetModal(prev => ({ ...prev, newPass: e.target.value }))} 
+                  onKeyDown={(e) => e.key === 'Enter' && handleConfirmReset()}
+                />
+              </div>
+            </div>
+            
+            <div className="flex gap-3 pt-2">
+              <button 
+                className="flex-1 py-3 bg-surface-container-high text-on-surface-variant rounded-xl font-headline-sm text-[15px] hover:bg-surface-container-highest transition-colors"
+                onClick={() => setResetModal({ isOpen: false, userId: '', email: '', newPass: '' })}
+              >
+                Batal
+              </button>
+              <button 
+                className="flex-1 py-3 bg-primary text-white rounded-xl font-headline-sm text-[15px] hover:opacity-95 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2" 
+                onClick={handleConfirmReset}
+              >
+                <span className="material-symbols-outlined text-[18px]">check</span>
+                Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

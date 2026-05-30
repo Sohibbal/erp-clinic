@@ -3,6 +3,8 @@
 import prisma from '@/lib/prisma'
 import type { UserRole } from '@/generated/prisma/client'
 
+import { createSession, deleteSession } from '@/lib/session'
+
 // ============================================================
 // AUTH — Server Actions
 // ============================================================
@@ -41,6 +43,9 @@ export async function login(email: string, password: string) {
     },
   })
 
+  // Create JWT session cookie
+  await createSession(user.id, user.email, user.role)
+
   return {
     success: true,
     user: {
@@ -51,6 +56,10 @@ export async function login(email: string, password: string) {
       employeeImage: user.employee?.imageUrl || null,
     },
   }
+}
+
+export async function logout(role?: string) {
+  await deleteSession(role)
 }
 
 export async function getSystemAccounts() {
@@ -113,4 +122,29 @@ export async function createUser(data: {
   })
 
   return user
+}
+
+export async function getCurrentUserProfile(role: string) {
+  const { verifySession } = await import('@/lib/session');
+  const session = await verifySession(role);
+  if (!session?.isAuth || !session.userId) return null;
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.userId },
+    include: { employee: true }
+  });
+
+  if (!user || !user.employee) return null;
+  
+  // Create initials from name
+  const nameParts = user.employee.name.split(' ');
+  const initials = nameParts.length > 1 
+    ? nameParts[0].charAt(0) + nameParts[1].charAt(0)
+    : user.employee.name.substring(0, 2);
+
+  return {
+    name: user.employee.name,
+    initials: initials.toUpperCase(),
+    imageUrl: user.employee.imageUrl
+  };
 }

@@ -19,32 +19,68 @@ export async function getPatients(search?: string) {
       }
     : {}
 
-  return prisma.patient.findMany({
+  const patients = await prisma.patient.findMany({
     where,
     include: {
+      queues: {
+        include: { doctor: { select: { name: true } }, therapist: { select: { name: true } } }
+      },
       medicalRecords: {
         orderBy: { visitDate: 'desc' },
         include: { doctor: { select: { name: true } } },
       },
+      transactions: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        include: {
+          items: {
+            include: {
+              service: { select: { name: true } },
+              product: { select: { name: true } }
+            }
+          }
+        }
+      }
     },
     orderBy: { registeredAt: 'desc' },
   })
+
+  return JSON.parse(JSON.stringify(patients))
 }
 
 export async function getPatientByNoRM(noRM: string) {
-  return prisma.patient.findUnique({
+  const patient = await prisma.patient.findUnique({
     where: { noRM },
     include: {
-      medicalRecords: {
-        orderBy: { visitDate: 'desc' },
-        include: { doctor: { select: { name: true } } },
+      queues: {
+        include: { doctor: { select: { name: true } }, therapist: { select: { name: true } } }
       },
+      medicalRecords: {
+        orderBy: { visitDate: 'asc' },
+        include: { 
+          doctor: { select: { name: true } },
+          transaction: { select: { createdAt: true } }
+        },
+      },
+      transactions: {
+        orderBy: { createdAt: 'desc' },
+        take: 1,
+        include: {
+          items: {
+            include: {
+              service: { select: { name: true } },
+              product: { select: { name: true } }
+            }
+          }
+        }
+      }
     },
   })
+
+  return JSON.parse(JSON.stringify(patient))
 }
 
 export async function createPatient(data: {
-  noRM: string
   nik: string
   name: string
   gender: Gender
@@ -55,9 +91,26 @@ export async function createPatient(data: {
   occupation?: string
   address?: string
 }) {
+  // Auto-generate noRM
+  const lastPatient = await prisma.patient.findFirst({
+    orderBy: { noRM: 'desc' }, // Order by noRM to get the highest one, assuming format RM-XXXX
+    select: { noRM: true }
+  })
+  
+  let nextRmNumber = 1
+  if (lastPatient && lastPatient.noRM.startsWith('RM-')) {
+    const lastNum = parseInt(lastPatient.noRM.replace('RM-', ''), 10)
+    if (!isNaN(lastNum)) {
+      nextRmNumber = lastNum + 1
+    }
+  }
+  
+  // Format as RM-000X
+  const noRM = `RM-${nextRmNumber.toString().padStart(4, '0')}`
+
   const patient = await prisma.patient.create({
     data: {
-      noRM: data.noRM,
+      noRM: noRM,
       nik: data.nik,
       name: data.name,
       gender: data.gender,

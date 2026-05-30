@@ -10,7 +10,7 @@ export function formatCurrency(amount: number | null | undefined, currency: 'IDR
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return '-';
   const d = new Date(date);
-  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  return d.toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export function getInitials(name: string | null | undefined): string {

@@ -42,12 +42,19 @@ export function ApotekerSideNavBar() {
           <span className="font-label-md text-label-md">Stok Barang</span>
         </Link>
       </nav>
-      <div className="px-4 mt-auto">
-        <div className="mt-4 pt-4 border-t border-outline-variant/30 space-y-1">
-          <Link href="/login" className="text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all cursor-pointer">
-            <span className="material-symbols-outlined text-[20px]">supervised_user_circle</span>
-            <span className="font-label-md text-label-md">Ganti Peran</span>
-          </Link>
+      <div className="px-4 mt-auto mb-4">
+        <div className="pt-4 border-t border-outline-variant/30 space-y-1">
+          <button 
+            onClick={async () => {
+              const { logout } = await import('@/actions/auth');
+              await logout('APOTEKER');
+              window.location.href = '/login';
+            }}
+            className="w-full text-left text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[20px]">logout</span>
+            <span className="font-label-md text-label-md">Keluar</span>
+          </button>
         </div>
       </div>
     </aside>

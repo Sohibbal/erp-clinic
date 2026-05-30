@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
-import { getProducts, createProduct, updateProduct, restockProduct } from '@/actions/product';
+import { getProducts, createProduct, updateProduct, restockProduct, getAllStockMovements } from '@/actions/product';
 import { formatCurrency } from '@/lib/utils';
 import type { StockStatus } from '@/generated/prisma/client';
 
@@ -12,22 +12,37 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
   const [statusFilter, setStatusFilter] = useState<StockStatus | 'ALL'>('ALL');
   const [showModal, setShowModal] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
-  const [newProduct, setNewProduct] = useState({ name: '', category: 'Skincare', stock: '', price: '' });
+  const [newProduct, setNewProduct] = useState({ name: '', category: 'Skincare', stock: '', price: '', expiryDate: '' });
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  // Stock Movements State
+  const [movements, setMovements] = useState<any[]>([]);
+  const [activeTab, setActiveTab] = useState<'catalog' | 'activity'>('catalog');
 
-  async function loadData() {
+  useEffect(() => {
+    loadData(false);
+    
+    // Auto-refresh data every 3 seconds for real-time updates
+    const intervalId = setInterval(() => {
+      loadData(true);
+    }, 3000);
+    
+    return () => clearInterval(intervalId);
+  }, [role]);
+
+  async function loadData(silent = false) {
     try {
-      setIsLoading(true);
+      if (!silent) setIsLoading(true);
       const data = await getProducts();
       setProducts(data);
+      if (role === 'owner') {
+        const moves = await getAllStockMovements();
+        setMovements(moves);
+      }
     } catch (error) {
-      toast.error('Gagal memuat produk');
+      if (!silent) toast.error('Gagal memuat produk');
     } finally {
-      setIsLoading(false);
+      if (!silent) setIsLoading(false);
     }
   }
 
@@ -64,6 +79,7 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
           category: newProduct.category,
           stock: Number(newProduct.stock) || 0,
           price: Number(newProduct.price) || 0,
+          expiryDate: newProduct.expiryDate || undefined,
         });
         toast.success(`Produk "${newProduct.name}" berhasil diperbarui!`);
       } else {
@@ -72,11 +88,12 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
           category: newProduct.category,
           stock: Number(newProduct.stock) || 0,
           price: Number(newProduct.price) || 0,
+          expiryDate: newProduct.expiryDate || undefined,
         });
         toast.success(`Produk "${newProduct.name}" berhasil ditambahkan!`);
       }
       setShowModal(false);
-      setNewProduct({ name: '', category: 'Skincare', stock: '', price: '' });
+      setNewProduct({ name: '', category: 'Skincare', stock: '', price: '', expiryDate: '' });
       setEditingProductId(null);
       await loadData();
     } catch (error) {
@@ -115,7 +132,7 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
             <input type="text" placeholder="Cari produk..." className="pl-10 pr-4 py-2.5 bg-white border border-outline-variant/60 rounded-xl text-body-sm w-64 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all" value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
           {role === 'apoteker' && (
-            <button className="bg-primary text-white px-5 py-2.5 rounded-xl font-label-md text-label-md flex items-center gap-2 hover:bg-primary/90 transition-all shadow-md hover:shadow-lg active:scale-95" onClick={() => { setEditingProductId(null); setNewProduct({ name: '', category: 'Skincare', stock: '', price: '' }); setShowModal(true); }}>
+            <button className="bg-primary text-white px-5 py-2.5 rounded-xl font-label-md text-label-md flex items-center gap-2 hover:bg-primary/90 transition-all shadow-md hover:shadow-lg active:scale-95" onClick={() => { setEditingProductId(null); setNewProduct({ name: '', category: 'Skincare', stock: '', price: '', expiryDate: '' }); setShowModal(true); }}>
               <span className="material-symbols-outlined text-[18px]">add</span>
               Tambah Produk
             </button>
@@ -123,7 +140,26 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
         </div>
       </div>
 
-      {/* Status Filter Tabs */}
+      {role === 'owner' && (
+        <div className="flex border-b border-outline-variant/30 mt-4">
+          <button 
+            className={`px-6 py-3 font-label-md transition-all border-b-2 ${activeTab === 'catalog' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:bg-surface-container-low'}`}
+            onClick={() => setActiveTab('catalog')}
+          >
+            Katalog Produk
+          </button>
+          <button 
+            className={`px-6 py-3 font-label-md transition-all border-b-2 ${activeTab === 'activity' ? 'border-primary text-primary' : 'border-transparent text-on-surface-variant hover:bg-surface-container-low'}`}
+            onClick={() => setActiveTab('activity')}
+          >
+            Aktivitas Stok
+          </button>
+        </div>
+      )}
+
+      {activeTab === 'catalog' && (
+        <>
+          {/* Status Filter Tabs */}
       <div className="flex gap-2 flex-wrap">
         {statusFilters.map(f => (
           <button key={f} className={`px-4 py-2 rounded-full font-label-md text-label-md transition-all ${statusFilter === f ? 'bg-primary text-white shadow-md' : 'bg-surface-container-low border border-outline-variant/30 text-on-surface-variant hover:bg-surface-container-high'}`} onClick={() => setStatusFilter(f)}>{f === 'ALL' ? 'Semua' : f === 'IN_STOCK' ? 'Tersedia' : f === 'LOW_STOCK' ? 'Stok Menipis' : f === 'EXPIRING' ? 'Akan Kedaluwarsa' : 'Habis'}</button>
@@ -159,7 +195,13 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
                   {role === 'apoteker' && (
                     <button className="p-2 hover:bg-primary-container/30 rounded-lg text-primary transition-all" title="Edit Produk" onClick={() => {
                       setEditingProductId(p.id);
-                      setNewProduct({ name: p.name, category: p.category, stock: p.stock.toString(), price: Number(p.price || 0).toString() });
+                      setNewProduct({ 
+                        name: p.name, 
+                        category: p.category, 
+                        stock: p.stock.toString(), 
+                        price: Number(p.price || 0).toString(),
+                        expiryDate: p.expiryDate ? new Date(p.expiryDate).toISOString().split('T')[0] : ''
+                      });
                       setShowModal(true);
                     }}>
                       <span className="material-symbols-outlined text-[20px]">edit</span>
@@ -181,7 +223,61 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
             <p className="mt-2">Produk tidak ditemukan.</p>
           </div>
         )}
-      </div>
+        </div>
+        </>
+      )}
+
+      {activeTab === 'activity' && role === 'owner' && (
+        <div className="glass-card ambient-shadow rounded-2xl overflow-hidden mt-4">
+          <table className="w-full text-left">
+            <thead className="bg-primary-container/10 border-b border-outline-variant/30">
+              <tr>
+                <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Tanggal</th>
+                <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Nama Produk</th>
+                <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Status</th>
+                <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Kuantitas</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-outline-variant/20">
+              {movements.map((move: any) => {
+                const isDeduction = move.stockAfter < move.stockBefore;
+                const time = new Date(move.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+                
+                return (
+                  <tr key={move.id} className="hover:bg-primary-container/5 transition-colors">
+                    <td className="px-6 py-4 font-body-sm text-on-surface-variant">{time}</td>
+                    <td className="px-6 py-4 font-body-md font-bold text-on-surface">{move.product?.name || 'Produk Dihapus'}</td>
+                    <td className="px-6 py-4">
+                      {isDeduction ? (
+                        <div>
+                          <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-orange-100 text-orange-700 border-orange-200">
+                            KURANG
+                          </span>
+                          <div className="text-[11px] text-on-surface-variant mt-1.5 font-mono">
+                            {move.referenceNote || '-'}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-green-100 text-green-700 border-green-200">
+                          TAMBAH
+                        </span>
+                      )}
+                    </td>
+                    <td className={`px-6 py-4 text-right font-headline-sm font-bold ${isDeduction ? 'text-orange-600' : 'text-green-600'}`}>
+                      {isDeduction ? '-' : '+'}{move.quantity}
+                    </td>
+                  </tr>
+                );
+              })}
+              {movements.length === 0 && (
+                <tr>
+                  <td colSpan={4} className="px-6 py-12 text-center text-on-surface-variant">Belum ada aktivitas stok yang tercatat.</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Add/Edit Modal */}
       {showModal && (
@@ -210,9 +306,15 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
                   <input type="number" className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="0" value={newProduct.stock} onChange={(e) => setNewProduct(prev => ({ ...prev, stock: e.target.value }))} />
                 </div>
               </div>
-              <div>
-                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Harga (Rp)</label>
-                <input type="number" className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="0" value={newProduct.price} onChange={(e) => setNewProduct(prev => ({ ...prev, price: e.target.value }))} />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Harga (Rp)</label>
+                  <input type="number" className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="0" value={newProduct.price} onChange={(e) => setNewProduct(prev => ({ ...prev, price: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Tgl Kedaluwarsa</label>
+                  <input type="date" className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary text-on-surface-variant" value={newProduct.expiryDate} onChange={(e) => setNewProduct(prev => ({ ...prev, expiryDate: e.target.value }))} />
+                </div>
               </div>
             </div>
             <button className="w-full bg-primary text-white py-3.5 rounded-xl font-headline-sm text-[15px] hover:opacity-95 transition-all shadow-md active:scale-95 flex items-center justify-center gap-2" onClick={handleSaveProduct}>

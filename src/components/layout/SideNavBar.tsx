@@ -9,6 +9,7 @@ export function SideNavBar() {
   const navItems = [
     { name: 'Dashboard', href: '/kasir', icon: 'dashboard' },
     { name: 'Transaksi', href: '/kasir/billing', icon: 'receipt_long' },
+    { name: 'Input Rekam Medis', href: '/kasir/input-rekam-medis', icon: 'medical_information' },
     { name: 'Stok Barang', href: '/kasir/inventory', icon: 'inventory_2' },
     { name: 'Beli Produk Satuan', href: '/kasir/retail', icon: 'point_of_sale' },
   ];
@@ -59,10 +60,17 @@ export function SideNavBar() {
       </nav>
       <div className="px-4 mt-auto">
         <div className="mt-4 pt-4 border-t border-outline-variant/30 space-y-1">
-          <Link href="/login" className="text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all cursor-pointer">
-            <span className="material-symbols-outlined text-[20px]">supervised_user_circle</span>
-            <span className="font-label-md text-label-md">Ganti Peran</span>
-          </Link>
+          <button 
+            onClick={async () => {
+              const { logout } = await import('@/actions/auth');
+              await logout('KASIR');
+              window.location.href = '/login';
+            }}
+            className="w-full text-left text-on-surface-variant px-4 py-2 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all cursor-pointer"
+          >
+            <span className="material-symbols-outlined text-[20px]">logout</span>
+            <span className="font-label-md text-label-md">Keluar</span>
+          </button>
         </div>
       </div>
     </aside>

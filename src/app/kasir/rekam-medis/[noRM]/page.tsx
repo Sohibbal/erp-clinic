@@ -102,17 +102,36 @@ export default function RekamMedisPrintPage({ params }: { params: Promise<{ noRM
             </tr>
           </thead>
           <tbody>
-            {(patient.medicalRecords || []).map((record: any, i: number) => (
+            {(patient.medicalRecords || []).map((record: any, i: number) => {
+              const txTime = record.transaction ? new Date(record.transaction.createdAt).getTime() : new Date(record.visitDate).getTime();
+              const matchedQueue = patient.queues?.reduce((closest: any, q: any) => {
+                const qTime = new Date(q.createdAt).getTime();
+                if (!closest || Math.abs(qTime - txTime) < Math.abs(new Date(closest.createdAt).getTime() - txTime)) {
+                  return q;
+                }
+                return closest;
+              }, null);
+
+              const doctorName = record.doctor?.name || matchedQueue?.doctor?.name;
+              const therapistName = matchedQueue?.therapist?.name;
+              
+              const handlers = [];
+              if (doctorName) handlers.push(`Dr. ${doctorName.replace('Dr. ', '')}`);
+              if (therapistName) handlers.push(therapistName);
+              const handledBy = handlers.length > 0 ? handlers.join(' & ') : '-';
+
+              return (
               <tr key={i}>
                 <td className="border border-black p-2 align-top text-[13px]">{formatDate(record.visitDate)}</td>
                 <td className="border border-black p-2 align-top text-[13px]">
-                  <span className="font-semibold">{record.doctor?.name || '-'}</span><br/>
-                  {record.notes || '-'}
+                  <span className="font-semibold">{handledBy}</span><br/>
+                  {record.anamnesis || '-'}
                 </td>
-                <td className="border border-black p-2 align-top text-[13px]"></td>
+                <td className="border border-black p-2 align-top text-[13px]">{record.diagnosis || '-'}</td>
                 <td className="border border-black p-2 align-top text-[13px]">{record.treatment || '-'}</td>
               </tr>
-            ))}
+              );
+            })}
             {Array.from({ length: blankRows }).map((_, i) => (
               <tr key={`blank-${i}`}>
                 <td className="border border-black p-2 h-14"></td>

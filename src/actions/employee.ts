@@ -12,6 +12,13 @@ export async function getEmployees(roleFilter?: EmployeeRole) {
     where: roleFilter ? { role: roleFilter } : {},
     include: {
       user: { select: { email: true, role: true, isActive: true } },
+      _count: {
+        select: {
+          doctorQueues: true,
+          therapistQueues: true,
+          medicalRecords: true,
+        }
+      }
     },
     orderBy: { name: 'asc' },
   })
@@ -132,4 +139,33 @@ export async function getTherapists() {
     where: { role: 'THERAPIST', status: 'ACTIVE' },
     orderBy: { name: 'asc' },
   })
+}
+
+export async function getEmployeePerformance() {
+  const employees = await prisma.employee.findMany({
+    where: {
+      role: { in: ['DOCTOR', 'THERAPIST'] }
+    },
+    include: {
+      _count: {
+        select: {
+          medicalRecords: true,
+          therapistQueues: true
+        }
+      }
+    }
+  });
+
+  // Calculate total patients handled
+  const performance = employees.map(emp => ({
+    id: emp.id,
+    name: emp.name,
+    role: emp.role,
+    imageUrl: emp.imageUrl,
+    // Doctor handled patients = medicalRecords count. Therapist handled patients = therapistQueues count
+    patientCount: emp.role === 'DOCTOR' ? emp._count.medicalRecords : emp._count.therapistQueues
+  }));
+
+  // Sort descending by patientCount
+  return performance.sort((a, b) => b.patientCount - a.patientCount);
 }

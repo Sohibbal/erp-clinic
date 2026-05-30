@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import { formatCurrency } from '@/lib/utils';
 import { getServices, createService, updateService, deleteService } from '@/actions/service';
+import { getProducts } from '@/actions/product';
 import type { DiscountType } from '@/generated/prisma/client';
 
 export default function OwnerServicesPage() {
@@ -11,22 +12,35 @@ export default function OwnerServicesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+  const [products, setProducts] = useState<any[]>([]);
 
   // CRUD State
   const [showModal, setShowModal] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [formData, setFormData] = useState<{
     name: string;
+    description: string;
     price: string;
     promoActive: boolean;
     promoType: 'PERCENTAGE' | 'FIXED';
     promoValue: string;
+    linkedProductIds: string[];
+    doctorFeeType: 'PERCENTAGE' | 'FIXED';
+    doctorFeeValue: string;
+    therapistFeeType: 'PERCENTAGE' | 'FIXED';
+    therapistFeeValue: string;
   }>({
     name: '',
+    description: '',
     price: '',
     promoActive: false,
     promoType: 'PERCENTAGE',
     promoValue: '',
+    linkedProductIds: [],
+    doctorFeeType: 'FIXED',
+    doctorFeeValue: '',
+    therapistFeeType: 'FIXED',
+    therapistFeeValue: '',
   });
 
   useEffect(() => {
@@ -36,10 +50,14 @@ export default function OwnerServicesPage() {
   async function loadData() {
     try {
       setIsLoading(true);
-      const data = await getServices(search);
-      setServices(data);
-      if (data.length > 0 && !selectedId && !search) {
-        setSelectedId(data[0].id);
+      const [servicesData, productsData] = await Promise.all([
+        getServices(search),
+        getProducts()
+      ]);
+      setServices(servicesData);
+      setProducts(productsData);
+      if (servicesData.length > 0 && !selectedId && !search) {
+        setSelectedId(servicesData[0].id);
       }
     } catch (error) {
       toast.error('Gagal memuat layanan');
@@ -63,7 +81,10 @@ export default function OwnerServicesPage() {
 
   const openAddModal = () => {
     setEditingId(null);
-    setFormData({ name: '', price: '', promoActive: false, promoType: 'PERCENTAGE', promoValue: '' });
+    setFormData({ 
+      name: '', description: '', price: '', promoActive: false, promoType: 'PERCENTAGE', promoValue: '', linkedProductIds: [],
+      doctorFeeType: 'FIXED', doctorFeeValue: '', therapistFeeType: 'FIXED', therapistFeeValue: ''
+    });
     setShowModal(true);
   };
 
@@ -72,10 +93,16 @@ export default function OwnerServicesPage() {
     const promo = service.promotions?.[0];
     setFormData({
       name: service.name,
+      description: service.description || '',
       price: service.basePrice.toString(),
       promoActive: promo?.isActive ?? false,
       promoType: (promo?.discountType as 'PERCENTAGE' | 'FIXED') ?? 'PERCENTAGE',
       promoValue: (promo?.discountValue ?? '').toString(),
+      linkedProductIds: service.linkedProducts?.map((lp: any) => lp.productId) || [],
+      doctorFeeType: (service.doctorFeeType as 'PERCENTAGE' | 'FIXED') ?? 'FIXED',
+      doctorFeeValue: (service.doctorFeeValue ?? '').toString(),
+      therapistFeeType: (service.therapistFeeType as 'PERCENTAGE' | 'FIXED') ?? 'FIXED',
+      therapistFeeValue: (service.therapistFeeValue ?? '').toString(),
     });
     setShowModal(true);
   };
@@ -90,19 +117,31 @@ export default function OwnerServicesPage() {
       if (editingId) {
         await updateService(editingId, {
           name: formData.name,
+          description: formData.description,
           basePrice: Number(formData.price),
           promoActive: formData.promoActive,
-          promoType: formData.promoType as DiscountType,
+          promoType: formData.promoType,
           promoValue: Number(formData.promoValue),
+          linkedProductIds: formData.linkedProductIds,
+          doctorFeeType: formData.doctorFeeType,
+          doctorFeeValue: Number(formData.doctorFeeValue || 0),
+          therapistFeeType: formData.therapistFeeType,
+          therapistFeeValue: Number(formData.therapistFeeValue || 0),
         });
-        toast.success('Layanan berhasil diperbarui!');
+        toast.success('Layanan diperbarui');
       } else {
         const newService = await createService({
           name: formData.name,
+          description: formData.description,
           basePrice: Number(formData.price),
           promoActive: formData.promoActive,
-          promoType: formData.promoType as DiscountType,
+          promoType: formData.promoType,
           promoValue: Number(formData.promoValue),
+          linkedProductIds: formData.linkedProductIds,
+          doctorFeeType: formData.doctorFeeType,
+          doctorFeeValue: Number(formData.doctorFeeValue || 0),
+          therapistFeeType: formData.therapistFeeType,
+          therapistFeeValue: Number(formData.therapistFeeValue || 0),
         });
         setSelectedId(newService.id);
         toast.success('Layanan baru berhasil ditambahkan!');
@@ -337,6 +376,17 @@ export default function OwnerServicesPage() {
                   placeholder="e.g., Facial Acne Treatment" 
                 />
               </div>
+
+              <div>
+                <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Deskripsi Layanan</label>
+                <textarea 
+                  className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all custom-scrollbar" 
+                  value={formData.description} 
+                  onChange={e => setFormData({ ...formData, description: e.target.value })} 
+                  placeholder="e.g., Perawatan wajah khusus untuk kulit berjerawat..." 
+                  rows={3}
+                />
+              </div>
               
               <div>
                 <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Harga Dasar (Rp)</label>
@@ -347,6 +397,68 @@ export default function OwnerServicesPage() {
                   onChange={e => setFormData({ ...formData, price: e.target.value })} 
                   placeholder="e.g., 150000" 
                 />
+              </div>
+
+              {/* Fee Dokter & Terapis */}
+              <div className="pt-4 border-t border-outline-variant/30 mt-2 space-y-4">
+                <h4 className="font-label-lg font-bold text-on-surface flex items-center gap-2 mb-2">
+                  <span className="material-symbols-outlined text-[20px] text-primary">payments</span>
+                  Pengaturan Fee Karyawan
+                </h4>
+                
+                <div className="grid grid-cols-2 gap-4 bg-secondary-container/20 p-4 rounded-xl border border-secondary/20">
+                  <div className="col-span-2">
+                    <label className="font-label-sm text-label-sm font-bold text-on-surface uppercase block mb-2">Fee Dokter</label>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-on-surface-variant uppercase block mb-1">Tipe</label>
+                    <select 
+                      className="w-full py-2 px-3 bg-white border border-outline-variant/60 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-[13px]"
+                      value={formData.doctorFeeType}
+                      onChange={(e) => setFormData({ ...formData, doctorFeeType: e.target.value as 'PERCENTAGE' | 'FIXED' })}
+                    >
+                      <option value="PERCENTAGE">Persentase (%)</option>
+                      <option value="FIXED">Nominal (Rp)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-on-surface-variant uppercase block mb-1">Nilai</label>
+                    <input 
+                      type="number"
+                      className="w-full py-2 px-3 bg-white border border-outline-variant/60 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-[13px]" 
+                      value={formData.doctorFeeValue} 
+                      onChange={e => setFormData({ ...formData, doctorFeeValue: e.target.value })} 
+                      placeholder={formData.doctorFeeType === 'PERCENTAGE' ? "e.g., 40" : "e.g., 50000"} 
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4 bg-tertiary-container/20 p-4 rounded-xl border border-tertiary/20">
+                  <div className="col-span-2">
+                    <label className="font-label-sm text-label-sm font-bold text-on-surface uppercase block mb-2">Fee Terapis</label>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-on-surface-variant uppercase block mb-1">Tipe</label>
+                    <select 
+                      className="w-full py-2 px-3 bg-white border border-outline-variant/60 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-[13px]"
+                      value={formData.therapistFeeType}
+                      onChange={(e) => setFormData({ ...formData, therapistFeeType: e.target.value as 'PERCENTAGE' | 'FIXED' })}
+                    >
+                      <option value="PERCENTAGE">Persentase (%)</option>
+                      <option value="FIXED">Nominal (Rp)</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] text-on-surface-variant uppercase block mb-1">Nilai</label>
+                    <input 
+                      type="number"
+                      className="w-full py-2 px-3 bg-white border border-outline-variant/60 rounded-lg focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all text-[13px]" 
+                      value={formData.therapistFeeValue} 
+                      onChange={e => setFormData({ ...formData, therapistFeeValue: e.target.value })} 
+                      placeholder={formData.therapistFeeType === 'PERCENTAGE' ? "e.g., 20" : "e.g., 25000"} 
+                    />
+                  </div>
+                </div>
               </div>
 
               <div className="pt-4 border-t border-outline-variant/30 mt-2">
@@ -394,6 +506,42 @@ export default function OwnerServicesPage() {
                     </div>
                   </div>
                 )}
+              </div>
+
+              {/* Produk & Obat Terhubung */}
+              <div className="pt-4 border-t border-outline-variant/30 mt-2">
+                <div className="mb-4">
+                  <h4 className="font-label-lg font-bold text-on-surface flex items-center gap-2">
+                    <span className="material-symbols-outlined text-[20px] text-primary">inventory_2</span>
+                    Produk & Obat Terhubung
+                  </h4>
+                  <p className="text-[11px] text-on-surface-variant">Pilih produk yang terkait dengan layanan ini. Kuantitas akan diatur oleh kasir saat pembayaran.</p>
+                </div>
+                
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-2 custom-scrollbar border border-outline-variant/30 rounded-xl p-2 bg-surface-container-lowest">
+                  {products.length === 0 ? (
+                    <p className="text-center text-[12px] text-on-surface-variant py-4">Belum ada produk di database.</p>
+                  ) : products.map(prod => (
+                    <label key={prod.id} className="flex items-center gap-3 p-3 bg-white hover:bg-primary-container/10 rounded-lg cursor-pointer border border-outline-variant/20 transition-all">
+                      <input 
+                        type="checkbox" 
+                        className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2"
+                        checked={formData.linkedProductIds.includes(prod.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setFormData(prev => ({ ...prev, linkedProductIds: [...prev.linkedProductIds, prod.id] }));
+                          } else {
+                            setFormData(prev => ({ ...prev, linkedProductIds: prev.linkedProductIds.filter(id => id !== prod.id) }));
+                          }
+                        }}
+                      />
+                      <div className="flex-1">
+                        <p className="font-body-sm font-bold text-on-surface leading-tight">{prod.name}</p>
+                        <p className="text-[10px] text-on-surface-variant mt-0.5">{prod.category} • Stok: {prod.stock}</p>
+                      </div>
+                    </label>
+                  ))}
+                </div>
               </div>
             </div>
 

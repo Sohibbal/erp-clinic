@@ -18,6 +18,10 @@ export default function BillingPage() {
   const [dateFilter, setDateFilter] = useState<'today' | 'yesterday' | 'all'>('today');
   const [search, setSearch] = useState('');
   
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(5);
+  
   // Checkout Modal State
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1);
@@ -50,28 +54,42 @@ export default function BillingPage() {
   const todayStr = new Date().toDateString();
   const yesterdayStr = new Date(Date.now() - 86400000).toDateString();
 
-  const filtered = transactions
-    .filter(t => {
+  const filtered = transactions.filter(t => {
       const tDate = new Date(t.createdAt).toDateString();
       if (dateFilter === 'today') return tDate === todayStr;
       if (dateFilter === 'yesterday') return tDate === yesterdayStr;
       return true;
-    })
-    .filter(t =>
-      (t.patient?.name?.toLowerCase() || '').includes(search.toLowerCase()) ||
-      t.invoiceId.toLowerCase().includes(search.toLowerCase())
-    );
+    }).filter(t => 
+    t.invoiceId?.toLowerCase().includes(search.toLowerCase()) ||
+    (t.patient?.name && t.patient.name.toLowerCase().includes(search.toLowerCase()))
+  );
+
+  const totalPages = Math.ceil(filtered.length / perPage);
+  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
 
   const todayTx = transactions.filter(t => new Date(t.createdAt).toDateString() === todayStr);
   const totalRevenue = todayTx.filter(t => t.status === 'PAID').reduce((s, t) => s + Number(t.totalAmount), 0);
   const totalTransactions = todayTx.length;
   const pendingCount = todayTx.filter(t => t.status === 'PENDING').length;
 
+  const handleServiceChange = (serviceId: string) => {
+    setSelectedServiceId(serviceId);
+    const service = services.find(s => s.id === serviceId);
+    if (service && service.linkedProducts) {
+      setSelectedProducts(service.linkedProducts.map((lp: any) => ({
+        id: lp.productId,
+        qty: lp.defaultQty || 1
+      })));
+    } else {
+      setSelectedProducts([]);
+    }
+  };
+
   const handleOpenProcessModal = (id: string) => {
     setProcessingId(id);
     setCheckoutStep(1);
-    setSelectedServiceId(services[0]?.id || '');
-    setSelectedProducts([]);
+    const initialServiceId = services[0]?.id || '';
+    handleServiceChange(initialServiceId);
     setSelectedMethod('CASH');
   };
 
@@ -83,13 +101,35 @@ export default function BillingPage() {
     );
   };
 
+  const updateQty = (productId: string, qty: number) => {
+    if (qty < 1) return;
+    setSelectedProducts(prev => prev.map(p => p.id === productId ? { ...p, qty } : p));
+  };
+
+  const getServicePrice = (service: any) => {
+    if (!service) return 0;
+    const base = Number(service.basePrice || 0);
+    if (service.promotions && service.promotions.length > 0) {
+      const promo = service.promotions[0];
+      if (promo.discountType === 'PERCENTAGE') {
+        return base - (base * Number(promo.discountValue) / 100);
+      } else {
+        return Math.max(0, base - Number(promo.discountValue));
+      }
+    }
+    return base;
+  };
+
   const calculateSubtotal = () => {
     const service = services.find(s => s.id === selectedServiceId);
-    let total = Number(service?.basePrice || 0);
+    const linkedProductIds = service?.linkedProducts?.map((lp: any) => lp.productId) || [];
+    let total = getServicePrice(service);
     
     selectedProducts.forEach(sp => {
-      const p = products.find(prod => prod.id === sp.id);
-      if (p) total += Number(p.price) * sp.qty;
+      if (!linkedProductIds.includes(sp.id)) {
+        const p = products.find(prod => prod.id === sp.id);
+        if (p) total += Number(p.price) * sp.qty;
+      }
     });
     return total;
   };
@@ -98,6 +138,7 @@ export default function BillingPage() {
     if (!processingId) return;
     
     const service = services.find(s => s.id === selectedServiceId);
+    const linkedProductIds = service?.linkedProducts?.map((lp: any) => lp.productId) || [];
     
     const items: any[] = [];
     if (service) {
@@ -106,19 +147,20 @@ export default function BillingPage() {
         serviceId: service.id,
         itemName: service.name,
         quantity: 1,
-        unitPrice: Number(service.basePrice)
+        unitPrice: getServicePrice(service)
       });
     }
 
     selectedProducts.forEach(sp => {
       const p = products.find(prod => prod.id === sp.id);
       if (p) {
+        const isLinked = linkedProductIds.includes(p.id);
         items.push({
           itemType: 'PRODUCT' as const,
           productId: p.id,
           itemName: p.name,
           quantity: sp.qty,
-          unitPrice: Number(p.price)
+          unitPrice: isLinked ? 0 : Number(p.price)
         });
       }
     });
@@ -174,9 +216,13 @@ export default function BillingPage() {
               </button>
             ))}
           </div>
-          <button className="bg-white border border-outline-variant px-4 py-2.5 rounded-xl font-label-md text-label-md flex items-center gap-2 hover:bg-surface-container-high transition-colors shadow-sm" onClick={() => toast.success('Laporan berhasil diekspor!')}>
+          <Link 
+            href={`/kasir/billing/report?dateFilter=${dateFilter}&search=${search}`}
+            target="_blank"
+            className="bg-white border border-outline-variant px-4 py-2.5 rounded-xl font-label-md text-label-md flex items-center gap-2 hover:bg-surface-container-high transition-colors shadow-sm"
+          >
             <span className="material-symbols-outlined text-[18px]">download</span> Ekspor Laporan
-          </button>
+          </Link>
         </div>
       </div>
 
@@ -221,6 +267,7 @@ export default function BillingPage() {
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Nama Pasien</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Layanan & Produk</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Metode Bayar</th>
+              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Ditangani Oleh</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Jumlah</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Status</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-center">Rekam Medis</th>
@@ -228,14 +275,31 @@ export default function BillingPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/20">
-            {filtered.map(t => {
-              const time = new Date(t.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            {paginated.map(t => {
+              const time = new Date(t.createdAt).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
               const servicesList = t.items?.filter((i: any) => i.itemType === 'SERVICE') || [];
               const productsList = t.items?.filter((i: any) => i.itemType === 'PRODUCT') || [];
               
               let methodIcon = 'payments';
               if (t.paymentMethod === 'QRIS') methodIcon = 'qr_code_2';
               else if (t.paymentMethod === 'TRANSFER') methodIcon = 'account_balance';
+
+              const txTime = new Date(t.createdAt).getTime();
+              const matchedQueue = t.patient?.queues?.reduce((closest: any, q: any) => {
+                const qTime = new Date(q.createdAt).getTime();
+                if (!closest || Math.abs(qTime - txTime) < Math.abs(new Date(closest.createdAt).getTime() - txTime)) {
+                  return q;
+                }
+                return closest;
+              }, null);
+
+              const doctorName = t.medicalRecords?.[0]?.doctor?.name || matchedQueue?.doctor?.name;
+              const therapistName = matchedQueue?.therapist?.name;
+              
+              const handlers = [];
+              if (doctorName) handlers.push(`Dr. ${doctorName.replace('Dr. ', '')}`);
+              if (therapistName) handlers.push(therapistName);
+              const handledBy = servicesList.length === 0 ? 'Resepsionis' : (handlers.length > 0 ? handlers.join(' & ') : '-');
               
               return (
               <tr key={t.id} className={`hover:bg-primary-container/5 transition-colors ${t.status === 'PENDING' ? 'bg-surface-container-highest/20' : ''}`}>
@@ -264,14 +328,21 @@ export default function BillingPage() {
                     </div>
                   ) : <span className="font-body-sm text-on-surface-variant">-</span>}
                 </td>
+                <td className="px-6 py-4">
+                  <div className="font-body-sm text-on-surface-variant">{handledBy}</div>
+                </td>
                 <td className="px-6 py-4 font-body-md font-bold text-on-surface">{formatCurrency(Number(t.totalAmount || 0))}</td>
                 <td className="px-6 py-4">
                   <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${t.status === 'PAID' ? 'bg-primary-container text-on-primary-container' : 'bg-surface-container-high text-on-surface-variant'}`}>{t.status === 'PAID' ? 'Lunas' : 'Tertunda'}</span>
                 </td>
                 <td className="px-6 py-4 text-center">
-                  <Link href={`/kasir/rekam-medis/${t.patient?.noRM || 'RM-0001'}`} target="_blank" className="inline-flex items-center justify-center p-2 rounded-lg text-primary hover:bg-primary-container/30 transition-colors" title="Cetak Rekam Medis">
-                    <span className="material-symbols-outlined text-[20px]">description</span>
-                  </Link>
+                  {servicesList.length > 0 && t.patient ? (
+                    <Link href={`/kasir/rekam-medis/${t.patient.noRM}`} target="_blank" className="inline-flex items-center justify-center p-2 rounded-lg text-primary hover:bg-primary-container/30 transition-colors" title="Cetak Rekam Medis">
+                      <span className="material-symbols-outlined text-[20px]">description</span>
+                    </Link>
+                  ) : (
+                    <span className="text-on-surface-variant/50 font-body-sm">-</span>
+                  )}
                 </td>
                 <td className="px-6 py-4 text-right">
                   {t.status === 'PAID' ? (
@@ -286,10 +357,51 @@ export default function BillingPage() {
               );
             })}
             {filtered.length === 0 && (
-              <tr><td colSpan={9} className="px-6 py-8 text-center text-on-surface-variant">Tidak ada transaksi ditemukan.</td></tr>
+              <tr><td colSpan={10} className="px-6 py-8 text-center text-on-surface-variant">Tidak ada transaksi ditemukan.</td></tr>
             )}
           </tbody>
         </table>
+        
+        {/* Pagination Controls */}
+        {filtered.length > 0 && (
+          <div className="p-4 border-t border-outline-variant/30 flex items-center justify-between bg-white/50">
+            <div className="flex items-center gap-3">
+              <span className="text-body-sm text-on-surface-variant">Tampilkan</span>
+              <select 
+                className="bg-surface-container border border-outline-variant/60 rounded-lg px-2 py-1 text-body-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                value={perPage}
+                onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }}
+              >
+                <option value={5}>5</option>
+                <option value={10}>10</option>
+                <option value={20}>20</option>
+              </select>
+              <span className="text-body-sm text-on-surface-variant">data</span>
+            </div>
+            
+            <div className="flex items-center gap-4">
+              <span className="text-body-sm text-on-surface-variant">
+                Menampilkan {(page - 1) * perPage + 1} - {Math.min(page * perPage, filtered.length)} dari {filtered.length}
+              </span>
+              <div className="flex items-center gap-1">
+                <button 
+                  className="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors disabled:opacity-30" 
+                  onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                  disabled={page === 1}
+                >
+                  <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+                </button>
+                <button 
+                  className="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors disabled:opacity-30" 
+                  onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+                  disabled={page === totalPages}
+                >
+                  <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* 2-Step Payment Modal */}
@@ -314,39 +426,96 @@ export default function BillingPage() {
                     <select 
                       className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-body-md" 
                       value={selectedServiceId} 
-                      onChange={e => setSelectedServiceId(e.target.value)}
+                      onChange={e => handleServiceChange(e.target.value)}
                     >
-                      {services.map(s => (
-                        <option key={s.id} value={s.id}>{s.name} - {formatCurrency(Number(s.basePrice || 0))}</option>
-                      ))}
+                      {services.map(s => {
+                        const finalPrice = getServicePrice(s);
+                        const originalPrice = Number(s.basePrice || 0);
+                        const label = finalPrice < originalPrice 
+                          ? `${s.name} - ${formatCurrency(finalPrice)} (Promo)` 
+                          : `${s.name} - ${formatCurrency(originalPrice)}`;
+                        return (
+                          <option key={s.id} value={s.id}>{label}</option>
+                        );
+                      })}
                     </select>
                   </div>
 
-                  <div>
-                    <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-2">Tambah Produk Skincare (Opsional)</label>
-                    <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                      {products.map(p => {
-                        const isSelected = selectedProducts.some(sp => sp.id === p.id);
-                        return (
-                          <label key={p.id} className={`flex justify-between items-center p-3 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-primary bg-primary-container/10' : 'border-outline-variant/40 hover:bg-surface-container-low'}`}>
-                            <div className="flex items-center gap-3">
-                              <input 
-                                type="checkbox" 
-                                checked={isSelected} 
-                                onChange={() => toggleProduct(p.id)}
-                                className="w-4 h-4 text-primary focus:ring-primary rounded"
-                              />
-                              <div>
-                                <p className="font-body-md font-semibold text-on-surface">{p.name}</p>
-                                <p className="text-[11px] text-on-surface-variant">{p.category}</p>
-                              </div>
+                  {(() => {
+                    const selectedService = services.find(s => s.id === selectedServiceId);
+                    const linkedProductIds = selectedService?.linkedProducts?.map((lp: any) => lp.productId) || [];
+                    const linkedProductsList = products.filter(p => linkedProductIds.includes(p.id));
+                    const optionalProductsList = products.filter(p => !linkedProductIds.includes(p.id));
+
+                    const renderProductRow = (p: any, isLinked: boolean) => {
+                      const isSelected = selectedProducts.some(sp => sp.id === p.id);
+                      const qty = selectedProducts.find(sp => sp.id === p.id)?.qty || 1;
+                      return (
+                        <div key={p.id} className={`flex justify-between items-center p-3 rounded-xl border transition-all ${isSelected ? 'border-primary bg-primary-container/10' : 'border-outline-variant/40 hover:bg-surface-container-low'}`}>
+                          <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => toggleProduct(p.id)}>
+                            <input 
+                              type="checkbox" 
+                              checked={isSelected} 
+                              readOnly
+                              className="w-4 h-4 text-primary focus:ring-primary rounded cursor-pointer"
+                            />
+                            <div>
+                              <p className="font-body-md font-semibold text-on-surface">{p.name}</p>
+                              <p className="text-[11px] text-on-surface-variant">{p.category}</p>
                             </div>
-                            <span className="font-label-md text-primary">{formatCurrency(Number(p.price || 0))}</span>
-                          </label>
-                        );
-                      })}
-                    </div>
-                  </div>
+                          </div>
+                          
+                          <div className="flex items-center gap-4">
+                            {isLinked ? (
+                              <span className="font-label-md text-green-600 text-[10px] uppercase font-bold tracking-wider">Termasuk Layanan</span>
+                            ) : (
+                              <span className="font-label-md text-primary">{formatCurrency(Number(p.price || 0))}</span>
+                            )}
+                            {isSelected && (
+                              <div className="flex items-center gap-2 bg-surface-container-high rounded-lg p-1 border border-outline-variant/30" onClick={(e) => e.stopPropagation()}>
+                                <button 
+                                  className="w-6 h-6 flex items-center justify-center rounded bg-white text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50"
+                                  onClick={() => updateQty(p.id, qty - 1)}
+                                  disabled={qty <= 1}
+                                >
+                                  -
+                                </button>
+                                <span className="font-label-md text-[12px] w-4 text-center">{qty}</span>
+                                <button 
+                                  className="w-6 h-6 flex items-center justify-center rounded bg-white text-on-surface hover:bg-surface-container-highest transition-colors"
+                                  onClick={() => updateQty(p.id, qty + 1)}
+                                >
+                                  +
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    };
+
+                    return (
+                      <div className="space-y-6">
+                        {linkedProductsList.length > 0 && (
+                          <div>
+                            <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-2">Produk Terkait Layanan</label>
+                            <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                              {linkedProductsList.map((p) => renderProductRow(p, true))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {optionalProductsList.length > 0 && (
+                          <div>
+                            <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-2">Tambah Produk Skincare (Opsional)</label>
+                            <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                              {optionalProductsList.map((p) => renderProductRow(p, false))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
 
                   <div className="pt-4 border-t border-outline-variant/30 flex justify-between items-center">
                     <span className="font-label-lg text-on-surface-variant">Estimasi Total:</span>

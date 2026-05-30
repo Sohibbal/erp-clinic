@@ -24,11 +24,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="id" className={`${montserrat.variable} ${inter.variable} light h-full antialiased`}>
+    <html lang="id" className={`${montserrat.variable} ${inter.variable} light h-full antialiased`} suppressHydrationWarning>
       <head>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
       </head>
-      <body className="bg-background text-on-background font-body-md min-h-screen flex flex-col">
+      <body className="bg-background text-on-background font-body-md min-h-screen flex flex-col" suppressHydrationWarning>
         {children}
         <Toaster position="top-right" richColors closeButton />
       </body>

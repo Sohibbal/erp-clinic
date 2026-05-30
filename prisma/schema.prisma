@@ -231,8 +231,14 @@ model MedicalRecord {
 model Service {
   id        String  @id @default(uuid())
   name      String
+  description String? @db.Text
   basePrice Decimal @map("base_price") @db.Decimal(12, 2)
   isActive  Boolean @default(true) @map("is_active")
+
+  doctorFeeType     DiscountType? @map("doctor_fee_type")
+  doctorFeeValue    Decimal?      @default(0) @map("doctor_fee_value") @db.Decimal(12, 2)
+  therapistFeeType  DiscountType? @map("therapist_fee_type")
+  therapistFeeValue Decimal?      @default(0) @map("therapist_fee_value") @db.Decimal(12, 2)
 
   linkedProducts   ServiceProduct[]
   promotions       Promotion[]

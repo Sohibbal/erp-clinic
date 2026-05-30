@@ -56,16 +56,27 @@ export async function getServiceById(id: string) {
 
 export async function createService(data: {
   name: string
+  description?: string
   basePrice: number
   promoActive?: boolean
   promoType?: DiscountType
   promoValue?: number
+  linkedProductIds?: string[]
+  doctorFeeType?: DiscountType
+  doctorFeeValue?: number
+  therapistFeeType?: DiscountType
+  therapistFeeValue?: number
 }) {
   const service = await prisma.service.create({
     data: {
       name: data.name,
+      description: data.description || null,
       basePrice: data.basePrice,
       isActive: true,
+      doctorFeeType: data.doctorFeeType || null,
+      doctorFeeValue: data.doctorFeeValue || 0,
+      therapistFeeType: data.therapistFeeType || null,
+      therapistFeeValue: data.therapistFeeValue || 0,
       ...(data.promoActive
         ? {
             promotions: {
@@ -74,6 +85,16 @@ export async function createService(data: {
                 discountType: data.promoType || 'PERCENTAGE',
                 discountValue: data.promoValue || 0,
               },
+            },
+          }
+        : {}),
+      ...(data.linkedProductIds && data.linkedProductIds.length > 0
+        ? {
+            linkedProducts: {
+              create: data.linkedProductIds.map((productId) => ({
+                product: { connect: { id: productId } },
+                defaultQty: 1, // Default quantity, cashier will override
+              })),
             },
           }
         : {}),
@@ -96,17 +117,28 @@ export async function updateService(
   id: string,
   data: {
     name?: string
+    description?: string
     basePrice?: number
     promoActive?: boolean
     promoType?: DiscountType
     promoValue?: number
+    linkedProductIds?: string[]
+    doctorFeeType?: DiscountType
+    doctorFeeValue?: number
+    therapistFeeType?: DiscountType
+    therapistFeeValue?: number
   }
 ) {
   const service = await prisma.service.update({
     where: { id },
     data: {
       ...(data.name ? { name: data.name } : {}),
+      ...(data.description !== undefined ? { description: data.description } : {}),
       ...(data.basePrice !== undefined ? { basePrice: data.basePrice } : {}),
+      ...(data.doctorFeeType !== undefined ? { doctorFeeType: data.doctorFeeType } : {}),
+      ...(data.doctorFeeValue !== undefined ? { doctorFeeValue: data.doctorFeeValue } : {}),
+      ...(data.therapistFeeType !== undefined ? { therapistFeeType: data.therapistFeeType } : {}),
+      ...(data.therapistFeeValue !== undefined ? { therapistFeeValue: data.therapistFeeValue } : {}),
     },
   })
 
@@ -134,6 +166,25 @@ export async function updateService(
           discountType: data.promoType || 'PERCENTAGE',
           discountValue: data.promoValue || 0,
         },
+      })
+    }
+  }
+
+  // Update linked products
+  if (data.linkedProductIds !== undefined) {
+    // Delete existing mappings
+    await prisma.serviceProduct.deleteMany({
+      where: { serviceId: id },
+    })
+
+    // Recreate mappings if there are any
+    if (data.linkedProductIds.length > 0) {
+      await prisma.serviceProduct.createMany({
+        data: data.linkedProductIds.map((productId) => ({
+          serviceId: id,
+          productId: productId,
+          defaultQty: 1, // Default quantity, cashier will override
+        })),
       })
     }
   }

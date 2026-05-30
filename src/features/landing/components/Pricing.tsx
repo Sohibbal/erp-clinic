@@ -4,14 +4,14 @@ import { useState, useEffect, useRef } from 'react';
 import { getServices } from '@/actions/service';
 import { formatCurrency } from '@/lib/utils';
 
-export function Promo() {
-  const [promoServices, setPromoServices] = useState<any[]>([]);
+export function Pricing() {
+  const [pricingServices, setPricingServices] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isVisible, setIsVisible] = useState(false);
   const sectionRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (isLoading || promoServices.length === 0 || !sectionRef.current) return;
+    if (isLoading || pricingServices.length === 0 || !sectionRef.current) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -25,54 +25,41 @@ export function Promo() {
 
     observer.observe(sectionRef.current);
     return () => observer.disconnect();
-  }, [isLoading, promoServices.length]);
+  }, [isLoading, pricingServices.length]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const allServices = await getServices();
-        setPromoServices(allServices.filter((s: any) => s.promotions && s.promotions.length > 0));
+        // Hanya tampilkan 6 layanan aktif yang tidak memiliki promo
+        setPricingServices(allServices.filter((s: any) => s.isActive && (!s.promotions || s.promotions.length === 0)).slice(0, 6));
       } catch (error) {
-        console.error('Failed to fetch promos');
+        console.error('Failed to fetch pricing');
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchData();
-
-    const intervalId = setInterval(() => {
-      fetchData();
-    }, 3000);
-
-    return () => clearInterval(intervalId);
   }, []);
 
-  if (!isLoading && promoServices.length === 0) return null;
-  if (isLoading && promoServices.length === 0) return null; // Avoid flashing empty layout
+  if (!isLoading && pricingServices.length === 0) return null;
+  if (isLoading && pricingServices.length === 0) return null;
 
   return (
-    <section ref={sectionRef} className="min-h-screen py-24 flex items-center overflow-hidden bg-gradient-to-b from-surface-container-lowest to-surface-container-low" id="promo">
+    <section ref={sectionRef} className="min-h-screen py-24 bg-surface flex items-center overflow-hidden" id="pricing">
       <div className={`max-w-container-max mx-auto px-margin w-full transition-all duration-1000 transform ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}`}>
         <div className="text-center mb-12">
-          <h2 className="text-4xl md:text-5xl font-bold font-display-md text-on-background mb-6">Promo Eksklusif</h2>
-          <p className="text-xl md:text-2xl font-body-lg text-on-surface-variant max-w-3xl mx-auto">Temukan penawaran waktu terbatas dan paket perawatan pilihan untuk menyempurnakan pengalaman klinis Anda.</p>
+          <h2 className="text-4xl md:text-5xl font-bold font-display-md text-on-background mb-6">Layanan Kami</h2>
+          <p className="text-xl md:text-2xl font-body-lg text-on-surface-variant max-w-3xl mx-auto">Jelajahi berbagai layanan klinis premium yang dirancang khusus untuk kebutuhan Anda.</p>
         </div>
 
         <div className="flex flex-wrap justify-center gap-6">
-          {promoServices.map((service: any, idx: number) => {
-            const promo = service.promotions[0];
-            const isGold = idx % 2 === 0;
+          {pricingServices.map((service: any, idx: number) => {
+            // idx % 2 !== 0 makes it Black first, then White (Gold)
+            const isGold = idx % 2 !== 0;
 
-            // Calculate discounted price
-            let finalPrice = service.basePrice;
-            if (promo.discountType === 'PERCENTAGE') {
-              finalPrice = finalPrice - (finalPrice * (promo.discountValue / 100));
-            } else if (promo.discountType === 'FIXED') {
-              finalPrice = Math.max(0, finalPrice - promo.discountValue);
-            }
-
-            const productsInfo = service.description || 'Dapatkan layanan terbaik dengan penawaran spesial ini.';
+            const productsInfo = service.description || 'Layanan premium untuk kesehatan dan kecantikan Anda.';
 
             return (
               <div
@@ -80,7 +67,7 @@ export function Promo() {
                 className={`
                   w-full max-w-[400px] xl:max-w-[420px] border rounded-3xl p-6 lg:p-7 relative overflow-hidden group transition-all duration-700 hover:-translate-y-2 flex flex-col min-h-[460px]
                   ${isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-12'}
-                  ${isGold 
+                  ${isGold
                     ? 'bg-gradient-to-br from-[#F5F2EA] to-white border-[#D6C6A2]/50 shadow-[0_15px_40px_-15px_rgba(194,160,88,0.2)] hover:shadow-[0_25px_50px_-15px_rgba(194,160,88,0.3)]'
                     : 'bg-[#22211D] border-white/10 shadow-[0_15px_40px_-15px_rgba(0,0,0,0.4)] hover:shadow-[0_25px_50px_-15px_rgba(194,160,88,0.2)]'
                   }
@@ -89,8 +76,8 @@ export function Promo() {
               >
                 {/* Giant WATERMARK */}
                 <div className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 -rotate-12 pointer-events-none select-none transition-all duration-700 group-hover:scale-110 group-hover:-rotate-6 ${isGold ? 'opacity-[0.04]' : 'opacity-[0.03]'}`}>
-                  <span className={`font-display-lg text-[120px] lg:text-[140px] font-black uppercase tracking-tighter whitespace-nowrap leading-none ${isGold ? 'text-[#C2A058]' : 'text-white'}`}>
-                    PROMO
+                  <span className={`font-display-lg text-[100px] lg:text-[120px] font-black uppercase tracking-tighter whitespace-nowrap leading-none ${isGold ? 'text-[#C2A058]' : 'text-white'}`}>
+                    PRICING
                   </span>
                 </div>
 
@@ -103,23 +90,20 @@ export function Promo() {
                 <div className="relative z-10 flex flex-col h-full flex-grow">
                   <div className="mb-8">
                     <div className={`text-sm font-bold uppercase tracking-wider mb-2 ${isGold ? 'text-[#C2A058]' : 'text-white/70'}`}>
-                      Promo
+                      Layanan
                     </div>
                     <h3 className={`font-display-lg text-3xl md:text-4xl mb-3 leading-tight ${isGold ? 'text-[#22211D]' : 'text-white'}`}>
                       {service.name}
                     </h3>
-                    <p className={`font-body-md text-base max-w-sm ${isGold ? 'text-on-surface-variant' : 'text-[#DAD4C8]'}`}>
+                    <p className={`font-body-md text-base max-w-sm line-clamp-3 ${isGold ? 'text-on-surface-variant' : 'text-[#DAD4C8]'}`}>
                       {productsInfo}
                     </p>
                   </div>
 
                   <div className={`mt-auto pt-6 border-t ${isGold ? 'border-[#C2A058]/20' : 'border-white/10'}`}>
                     <div className="flex flex-col gap-1">
-                      <span className={`text-sm line-through opacity-70 ${isGold ? 'text-on-surface-variant' : 'text-white/70'}`}>
-                        {formatCurrency(service.basePrice)}
-                      </span>
                       <span className={`font-headline-lg text-4xl font-bold tracking-tighter ${isGold ? 'text-[#C2A058]' : 'text-white'}`}>
-                        {finalPrice === 0 ? 'Gratis' : formatCurrency(finalPrice)}
+                        {formatCurrency(service.basePrice)}
                       </span>
                     </div>
                   </div>

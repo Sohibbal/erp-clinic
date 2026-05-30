@@ -7,6 +7,20 @@ import type { StockStatus, StockMovementType } from '@/generated/prisma/client'
 // PRODUCT / INVENTORY — Server Actions
 // ============================================================
 
+function calculateStockStatus(stock: number, expiryDate: Date | null): StockStatus {
+  if (stock === 0) return 'OUT_OF_STOCK';
+  
+  if (expiryDate) {
+    const now = new Date();
+    const diffTime = expiryDate.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    if (diffDays <= 90) return 'EXPIRING';
+  }
+  
+  if (stock <= 5) return 'LOW_STOCK';
+  return 'IN_STOCK';
+}
+
 export async function getProducts(filters?: {
   search?: string
   status?: StockStatus | 'ALL'
@@ -29,7 +43,24 @@ export async function getProducts(filters?: {
     orderBy: { createdAt: 'desc' },
   })
 
-  return JSON.parse(JSON.stringify(products))
+  // Auto-update EXPIRING status on fetch if it changed
+  for (const product of products) {
+    const correctStatus = calculateStockStatus(product.stock, product.expiryDate);
+    if (product.stockStatus !== correctStatus) {
+      await prisma.product.update({
+        where: { id: product.id },
+        data: { stockStatus: correctStatus }
+      });
+      product.stockStatus = correctStatus;
+    }
+  }
+
+  // Refilter in memory if status filter was applied since we just updated statuses
+  const finalProducts = filters?.status && filters.status !== 'ALL' 
+    ? products.filter(p => p.stockStatus === filters.status)
+    : products;
+
+  return JSON.parse(JSON.stringify(finalProducts))
 }
 
 export async function getProductById(id: string) {
@@ -58,8 +89,8 @@ export async function createProduct(data: {
   batchNo?: string
   expiryDate?: string
 }) {
-  const stockStatus: StockStatus =
-    data.stock === 0 ? 'OUT_OF_STOCK' : data.stock <= 5 ? 'LOW_STOCK' : 'IN_STOCK'
+  const expiryDateObj = data.expiryDate ? new Date(data.expiryDate) : null;
+  const stockStatus = calculateStockStatus(data.stock, expiryDateObj);
 
   const product = await prisma.product.create({
     data: {
@@ -71,7 +102,7 @@ export async function createProduct(data: {
       icon: 'medication',
       batchNo: data.batchNo || `NEW-${Date.now()}`,
       lastRestock: new Date(),
-      expiryDate: data.expiryDate ? new Date(data.expiryDate) : null,
+      expiryDate: expiryDateObj,
     },
   })
 
@@ -84,26 +115,40 @@ export async function createProduct(data: {
     },
   })
 
+  if (data.stock > 0) {
+    await prisma.stockMovement.create({
+      data: {
+        productId: product.id,
+        movementType: 'RESTOCK',
+        quantity: data.stock,
+        stockBefore: 0,
+        stockAfter: data.stock,
+        referenceNote: 'Initial stock on creation',
+      },
+    })
+  }
+
   return JSON.parse(JSON.stringify(product))
 }
 
 export async function updateProduct(
   id: string,
-  data: { name?: string; category?: string; stock?: number; price?: number }
+  data: { name?: string; category?: string; stock?: number; price?: number; expiryDate?: string }
 ) {
   const oldProduct = await prisma.product.findUnique({ where: { id } })
+  if (!oldProduct) throw new Error('Product not found')
 
-  let stockStatus: StockStatus | undefined
-  if (data.stock !== undefined) {
-    stockStatus =
-      data.stock === 0 ? 'OUT_OF_STOCK' : data.stock <= 5 ? 'LOW_STOCK' : 'IN_STOCK'
-  }
+  const currentStock = data.stock !== undefined ? data.stock : oldProduct.stock;
+  const currentExpiry = data.expiryDate !== undefined ? (data.expiryDate ? new Date(data.expiryDate) : null) : oldProduct.expiryDate;
+  
+  const stockStatus = calculateStockStatus(currentStock, currentExpiry);
 
   const product = await prisma.product.update({
     where: { id },
     data: {
       ...data,
-      ...(stockStatus ? { stockStatus } : {}),
+      expiryDate: data.expiryDate !== undefined ? (data.expiryDate ? new Date(data.expiryDate) : null) : undefined,
+      stockStatus,
     },
   })
 
@@ -116,6 +161,20 @@ export async function updateProduct(
       newValue: JSON.stringify(product),
     },
   })
+
+  if (oldProduct && data.stock !== undefined && data.stock !== oldProduct.stock) {
+    const diff = data.stock - oldProduct.stock;
+    await prisma.stockMovement.create({
+      data: {
+        productId: product.id,
+        movementType: 'ADJUSTMENT',
+        quantity: Math.abs(diff),
+        stockBefore: oldProduct.stock,
+        stockAfter: data.stock,
+        referenceNote: 'Manual stock adjustment',
+      },
+    })
+  }
 
   return JSON.parse(JSON.stringify(product))
 }
@@ -134,7 +193,7 @@ export async function restockProduct(
     where: { id: productId },
     data: {
       stock: newStock,
-      stockStatus: newStock > 5 ? 'IN_STOCK' : newStock > 0 ? 'LOW_STOCK' : 'OUT_OF_STOCK',
+      stockStatus: calculateStockStatus(newStock, product.expiryDate),
       lastRestock: new Date(),
     },
   })
@@ -173,7 +232,7 @@ export async function recordStockMovement(data: {
     where: { id: data.productId },
     data: {
       stock: newStock,
-      stockStatus: newStock === 0 ? 'OUT_OF_STOCK' : newStock <= 5 ? 'LOW_STOCK' : 'IN_STOCK',
+      stockStatus: calculateStockStatus(newStock, product.expiryDate),
     },
   })
 
@@ -188,4 +247,16 @@ export async function recordStockMovement(data: {
       referenceNote: data.referenceNote || null,
     },
   })
+}
+
+export async function getAllStockMovements() {
+  const movements = await prisma.stockMovement.findMany({
+    include: {
+      product: { select: { name: true } },
+      performedBy: { select: { name: true } }
+    },
+    orderBy: { createdAt: 'desc' }
+  })
+  
+  return JSON.parse(JSON.stringify(movements))
 }

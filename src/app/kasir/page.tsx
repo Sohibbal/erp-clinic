@@ -23,6 +23,7 @@ type MappedPatient = {
   status: string;
   lastVisitDate: string;
   lastVisitTreatment: string;
+  lastVisitDoctor: string;
   medicalHistory: { date: string; doctor: string; treatment: string; notes: string }[];
   noRM: string;
   nik: string;
@@ -32,15 +33,20 @@ type MappedPatient = {
 
 export default function KasirDashboard() {
   const [patients, setPatients] = useState<MappedPatient[]>([]);
-  const [doctors, setDoctors] = useState<{id: string, name: string}[]>([]);
-  const [therapists, setTherapists] = useState<{id: string, name: string}[]>([]);
+  const [doctors, setDoctors] = useState<{ id: string, name: string }[]>([]);
+  const [therapists, setTherapists] = useState<{ id: string, name: string }[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [selectedNoRM, setSelectedNoRM] = useState<string>('');
   const [search, setSearch] = useState('');
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const perPage = 5;
+
   const [showRegisterModal, setShowRegisterModal] = useState(false);
   const [showQueueModal, setShowQueueModal] = useState(false);
   const [queueData, setQueueData] = useState({ doctorId: '', therapistId: '' });
-  const [newPatient, setNewPatient] = useState({ name: '', phone: '', dob: '', gender: 'FEMALE' as 'MALE' | 'FEMALE', allergies: '', noRM: '', nik: '', namaWali: '', pekerjaan: '' });
+  const [newPatient, setNewPatient] = useState({ name: '', phone: '', dob: '', gender: 'FEMALE' as 'MALE' | 'FEMALE', allergies: '', address: '', nik: '', namaWali: '', pekerjaan: '' });
   const router = useRouter();
 
   useEffect(() => {
@@ -52,10 +58,46 @@ export default function KasirDashboard() {
           getDoctors(),
           getTherapists()
         ]);
-        
-        const mappedPatients: MappedPatient[] = patientsData.map(p => {
-          const lastRecord = p.medicalRecords[0];
-          const age = p.dateOfBirth ? new Date().getFullYear() - p.dateOfBirth.getFullYear() : 0;
+
+        const mappedPatients: MappedPatient[] = patientsData.map((p: any) => {
+          const lastRecord = p.medicalRecords?.[0];
+          const lastTx = p.transactions?.[0];
+
+          let lastVisitDate = 'Belum ada';
+          let lastVisitTreatment = '-';
+          let lastVisitDoctor = '-';
+
+          if (lastTx) {
+            lastVisitDate = formatDate(lastTx.createdAt);
+            const services = lastTx.items?.filter((i: any) => i.itemType === 'SERVICE') || [];
+            lastVisitTreatment = services.length > 0 ? services.map((i: any) => i.service?.name || i.itemName).join(', ') : '-';
+
+            const txTime = new Date(lastTx.createdAt).getTime();
+            const matchedQueue = p.queues?.reduce((closest: any, q: any) => {
+              const qTime = new Date(q.createdAt).getTime();
+              if (!closest || Math.abs(qTime - txTime) < Math.abs(new Date(closest.createdAt).getTime() - txTime)) {
+                return q;
+              }
+              return closest;
+            }, null);
+
+            const docName = lastRecord?.doctor?.name || matchedQueue?.doctor?.name;
+            const therName = matchedQueue?.therapist?.name;
+            const handlers = [];
+            if (docName) handlers.push(`Dr. ${docName.replace('Dr. ', '')}`);
+            if (therName) handlers.push(therName);
+            lastVisitDoctor = handlers.length > 0 ? handlers.join(' & ') : '-';
+
+          } else if (lastRecord) {
+            lastVisitDate = formatDate(lastRecord.visitDate);
+            lastVisitTreatment = lastRecord.treatment || '-';
+            lastVisitDoctor = lastRecord.doctor?.name ? `Dr. ${lastRecord.doctor.name.replace('Dr. ', '')}` : '-';
+          }
+
+          const hasTransactions = p.transactions && p.transactions.length > 0;
+          const statusStr = (hasTransactions || p.status !== 'NEW_PATIENT') ? 'Returning' : 'New Patient';
+
+          const age = p.dateOfBirth ? new Date().getFullYear() - new Date(p.dateOfBirth).getFullYear() : 0;
           return {
             id: p.id,
             name: p.name,
@@ -66,26 +108,44 @@ export default function KasirDashboard() {
             dob: formatDate(p.dateOfBirth),
             allergies: p.allergies || 'None',
             registeredDate: formatDate(p.registeredAt),
-            status: p.status === 'NEW_PATIENT' ? 'New Patient' : 'Returning',
-            lastVisitDate: lastRecord ? formatDate(lastRecord.visitDate) : 'New',
-            lastVisitTreatment: lastRecord?.treatment || '-',
-            medicalHistory: p.medicalRecords.map(r => ({
-              date: formatDate(r.visitDate),
-              doctor: r.doctor?.name || 'Unknown',
-              treatment: r.treatment || '-',
-              notes: r.notes || ''
-            })),
+            status: statusStr,
+            lastVisitDate,
+            lastVisitTreatment,
+            lastVisitDoctor,
+            medicalHistory: (p.medicalRecords || []).map((r: any) => {
+              // Try to find matching queue by visitDate
+              const vTime = new Date(r.visitDate).getTime();
+              const mQueue = p.queues?.reduce((closest: any, q: any) => {
+                const qTime = new Date(q.createdAt).getTime();
+                if (!closest || Math.abs(qTime - vTime) < Math.abs(new Date(closest.createdAt).getTime() - vTime)) {
+                  return q;
+                }
+                return closest;
+              }, null);
+              const dName = r.doctor?.name || mQueue?.doctor?.name;
+              const tName = mQueue?.therapist?.name;
+              const hnd = [];
+              if (dName) hnd.push(`Dr. ${dName.replace('Dr. ', '')}`);
+              if (tName) hnd.push(tName);
+
+              return {
+                date: formatDate(r.visitDate),
+                doctor: hnd.length > 0 ? hnd.join(' & ') : 'Unknown',
+                treatment: r.treatment || '-',
+                notes: r.notes || ''
+              };
+            }),
             noRM: p.noRM,
             nik: p.nik || '',
             namaWali: p.guardianName || undefined,
             pekerjaan: p.occupation || undefined,
           };
         });
-        
+
         setPatients(mappedPatients);
         setDoctors(doctorsData);
         setTherapists(therapistsData);
-        
+
         if (mappedPatients.length > 0 && !selectedNoRM) {
           setSelectedNoRM(mappedPatients[0].noRM);
         }
@@ -108,15 +168,17 @@ export default function KasirDashboard() {
     p.phone.includes(search)
   );
 
+  const totalPages = Math.ceil(filtered.length / perPage);
+  const paginated = filtered.slice((page - 1) * perPage, page * perPage);
+
   const handleRegister = async () => {
-    if (!newPatient.name || !newPatient.phone || !newPatient.noRM || !newPatient.nik) {
-      toast.error('Nama Lengkap, Telepon, No. RM, dan NIK wajib diisi.');
+    if (!newPatient.name || !newPatient.nik || !newPatient.address || !newPatient.phone || !newPatient.dob || !newPatient.gender) {
+      toast.error('Semua kolom yang memiliki tanda (*) wajib diisi.');
       return;
     }
-    
+
     try {
       const created = await createPatient({
-        noRM: newPatient.noRM,
         nik: newPatient.nik,
         name: newPatient.name,
         gender: newPatient.gender,
@@ -124,9 +186,10 @@ export default function KasirDashboard() {
         dateOfBirth: newPatient.dob || undefined,
         allergies: newPatient.allergies,
         guardianName: newPatient.namaWali,
-        occupation: newPatient.pekerjaan
+        occupation: newPatient.pekerjaan,
+        address: newPatient.address || undefined
       });
-      
+
       const mapped: MappedPatient = {
         id: created.id,
         name: created.name,
@@ -138,19 +201,20 @@ export default function KasirDashboard() {
         allergies: created.allergies || 'None',
         registeredDate: formatDate(created.registeredAt),
         status: 'New Patient',
-        lastVisitDate: 'New',
+        lastVisitDate: 'Belum ada',
         lastVisitTreatment: '-',
+        lastVisitDoctor: '-',
         medicalHistory: [],
         noRM: created.noRM,
         nik: created.nik || '',
         namaWali: created.guardianName || undefined,
         pekerjaan: created.occupation || undefined
       };
-      
+
       setPatients(prev => [mapped, ...prev]);
       setSelectedNoRM(mapped.noRM);
       setShowRegisterModal(false);
-      setNewPatient({ name: '', phone: '', dob: '', gender: 'FEMALE', allergies: '', noRM: '', nik: '', namaWali: '', pekerjaan: '' });
+      setNewPatient({ name: '', phone: '', dob: '', gender: 'FEMALE', allergies: '', address: '', nik: '', namaWali: '', pekerjaan: '' });
       toast.success(`Pasien ${mapped.name} berhasil didaftarkan!`);
     } catch (error) {
       toast.error('Gagal mendaftar pasien. Mungkin No RM / NIK sudah ada.');
@@ -159,7 +223,12 @@ export default function KasirDashboard() {
 
   const handleAddToQueue = async () => {
     if (!selected) return;
-    
+
+    if (!queueData.doctorId && !queueData.therapistId) {
+      toast.error('Silakan pilih minimal Dokter atau Terapis');
+      return;
+    }
+
     try {
       await addToQueue({
         patientId: selected.id,
@@ -167,7 +236,7 @@ export default function KasirDashboard() {
         therapistId: queueData.therapistId || undefined,
         serviceName: selected.lastVisitTreatment !== '-' ? selected.lastVisitTreatment : 'General Consultation'
       });
-      
+
       toast.success(`${selected.name} berhasil ditambahkan ke antrean!`);
       setShowQueueModal(false);
       router.push('/kasir/billing');
@@ -178,7 +247,7 @@ export default function KasirDashboard() {
 
   return (
     <div className="p-margin max-w-container-max mx-auto w-full space-y-stack-lg">
-      
+
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-outline-variant/30 pb-4">
         <div>
@@ -222,7 +291,7 @@ export default function KasirDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-outline-variant/20">
-                {filtered.map(p => (
+                {paginated.map(p => (
                   <tr
                     key={p.noRM}
                     className={`transition-colors cursor-pointer ${selectedNoRM === p.noRM ? 'bg-primary-container/10 border-l-4 border-l-primary' : 'hover:bg-primary-container/5'}`}
@@ -235,7 +304,13 @@ export default function KasirDashboard() {
                     <td className="px-6 py-4"><div className="font-body-sm text-on-surface">{p.phone}</div></td>
                     <td className="px-6 py-4">
                       <div className="font-body-sm font-bold text-on-surface">{p.lastVisitDate}</div>
-                      <div className="font-body-sm text-on-surface-variant">{p.lastVisitTreatment}</div>
+                      <div className="font-body-sm text-on-surface-variant line-clamp-1">{p.lastVisitTreatment}</div>
+                      {p.lastVisitDoctor !== '-' && (
+                        <div className="text-[11px] text-primary font-medium mt-0.5 flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px]">stethoscope</span>
+                          {p.lastVisitDoctor}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-right">
                       <span className={`text-[10px] font-bold px-2 py-1 rounded-full uppercase ${p.status === 'New Patient' ? 'bg-primary-container text-on-primary-container' : 'bg-secondary-container text-on-secondary-container'}`}>{p.status === 'New Patient' ? 'Pasien Baru' : 'Kunjungan Ulang'}</span>
@@ -247,6 +322,31 @@ export default function KasirDashboard() {
                 )}
               </tbody>
             </table>
+
+            {/* Pagination Controls */}
+            {filtered.length > 0 && (
+              <div className="p-4 border-t border-outline-variant/30 flex items-center justify-between bg-white/50">
+                <span className="text-body-sm text-on-surface-variant">
+                  Menampilkan {(page - 1) * perPage + 1} - {Math.min(page * perPage, filtered.length)} dari {filtered.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button
+                    className="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors disabled:opacity-30"
+                    onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                    disabled={page === 1}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+                  </button>
+                  <button
+                    className="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors disabled:opacity-30"
+                    onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={page === totalPages}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -278,7 +378,7 @@ export default function KasirDashboard() {
                     <p className="text-body-sm text-on-surface-variant italic">Belum ada riwayat medis.</p>
                   ) : (
                     <div className="space-y-3">
-                      {selected.medicalHistory.map((record, idx) => (
+                      {selected.medicalHistory.slice(0, 3).map((record, idx) => (
                         <div key={idx} className={`p-3 rounded-xl border shadow-sm ${idx === 0 ? 'bg-surface-container-lowest border-primary/20' : 'bg-surface-container-lowest border-outline-variant/20 opacity-70'}`}>
                           <div className="flex justify-between items-center mb-1">
                             <span className={`font-label-md ${idx === 0 ? 'text-primary' : 'text-on-surface-variant'}`}>{record.date}</span>
@@ -324,8 +424,8 @@ export default function KasirDashboard() {
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">No. RM *</label>
-                  <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Masukkan No. RM" value={newPatient.noRM} onChange={(e) => setNewPatient(prev => ({ ...prev, noRM: e.target.value }))} />
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Nama Lengkap *</label>
+                  <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Masukkan nama lengkap" value={newPatient.name} onChange={(e) => setNewPatient(prev => ({ ...prev, name: e.target.value }))} />
                 </div>
                 <div>
                   <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">NIK *</label>
@@ -334,8 +434,8 @@ export default function KasirDashboard() {
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Nama Lengkap *</label>
-                  <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Masukkan nama lengkap" value={newPatient.name} onChange={(e) => setNewPatient(prev => ({ ...prev, name: e.target.value }))} />
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Alamat Lengkap *</label>
+                  <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="Masukkan alamat pasien" value={newPatient.address} onChange={(e) => setNewPatient(prev => ({ ...prev, address: e.target.value }))} />
                 </div>
                 <div>
                   <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Nama Wali</label>
@@ -348,13 +448,13 @@ export default function KasirDashboard() {
                   <input className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" placeholder="+62 8xx-xxxx-xxxx" value={newPatient.phone} onChange={(e) => setNewPatient(prev => ({ ...prev, phone: e.target.value }))} />
                 </div>
                 <div>
-                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Tanggal Lahir</label>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Tanggal Lahir *</label>
                   <input type="date" className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" value={newPatient.dob} onChange={(e) => setNewPatient(prev => ({ ...prev, dob: e.target.value }))} />
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4">
                 <div>
-                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Jenis Kelamin</label>
+                  <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-1">Jenis Kelamin *</label>
                   <select className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary" value={newPatient.gender} onChange={(e) => setNewPatient(prev => ({ ...prev, gender: e.target.value as 'MALE' | 'FEMALE' }))}>
                     <option value="FEMALE">Perempuan</option>
                     <option value="MALE">Laki-laki</option>
@@ -377,7 +477,7 @@ export default function KasirDashboard() {
           </div>
         </div>
       )}
-    {/* Queue Modal */}
+      {/* Queue Modal */}
       {showQueueModal && selected && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setShowQueueModal(false)}>
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-6" onClick={(e) => e.stopPropagation()}>
@@ -387,7 +487,7 @@ export default function KasirDashboard() {
                 <span className="material-symbols-outlined">close</span>
               </button>
             </div>
-            
+
             <div className="p-4 bg-primary-container/20 rounded-xl border border-primary-container/30">
               <p className="font-body-sm text-on-surface-variant mb-1">Pasien Terpilih</p>
               <p className="font-headline-sm font-bold text-primary">{selected.name}</p>

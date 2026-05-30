@@ -45,7 +45,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
   const currentDate = new Date().toLocaleDateString('id-ID', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
-  
+
   const txDate = new Date(transaction.createdAt).toLocaleDateString('id-ID', {
     weekday: 'long', year: 'numeric', month: 'long', day: 'numeric'
   });
@@ -57,18 +57,34 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
     window.print();
   };
 
+  const txTimestamp = new Date(transaction.createdAt).getTime();
+  const matchedQueue = transaction.patient?.queues?.reduce((closest: any, q: any) => {
+    const qTime = new Date(q.createdAt).getTime();
+    if (!closest || Math.abs(qTime - txTimestamp) < Math.abs(new Date(closest.createdAt).getTime() - txTimestamp)) {
+      return q;
+    }
+    return closest;
+  }, null);
+
+  const doctorName = transaction.medicalRecords?.[0]?.doctor?.name || matchedQueue?.doctor?.name;
+  const therapistName = matchedQueue?.therapist?.name;
+  const handlers = [];
+  if (doctorName) handlers.push(`Dr. ${doctorName.replace('Dr. ', '')}`);
+  if (therapistName) handlers.push(therapistName);
+  const handledBy = handlers.length > 0 ? handlers.join(' & ') : '-';
+
   return (
     <div className="bg-white min-h-screen text-on-surface print:bg-white print:m-0 print:p-0">
       {/* Floating Action Buttons (Hidden on Print) */}
       <div className="fixed bottom-10 right-10 z-50 print:hidden flex flex-col gap-4">
-        <Link 
+        <Link
           href="/kasir/billing"
           className="bg-surface-container-high text-on-surface-variant p-4 rounded-full shadow-lg hover:bg-surface-container-highest hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 group"
           title="Kembali"
         >
           <span className="material-symbols-outlined text-[24px]">arrow_back</span>
         </Link>
-        <button 
+        <button
           onClick={handlePrint}
           className="bg-primary text-white p-4 rounded-full shadow-2xl hover:bg-primary/90 hover:scale-105 active:scale-95 transition-all flex items-center justify-center gap-2 group"
           title="Cetak Struk / Simpan PDF"
@@ -79,12 +95,12 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
 
       {/* A4/Receipt Document Container */}
       <div className="max-w-[600px] mx-auto p-10 print:p-0 print:max-w-none print:w-full space-y-8 font-mono">
-        
+
         {/* Header */}
         <div className="text-center border-b-2 border-dashed border-outline-variant/50 pb-6">
           <h1 className="text-[28px] font-bold tracking-widest mb-1">SUNRISE CLINIC</h1>
-          <p className="text-[12px] text-on-surface-variant">Jl. Boulevard Sunrise No. 88, Jakarta</p>
-          <p className="text-[12px] text-on-surface-variant">Telp: (021) 1234-5678</p>
+          <p className="text-[12px] text-on-surface-variant">Jl. Sei Rumbai, Kota Lama, Kunto Darussalam, Rokan Hulu, Riau</p>
+          <p className="text-[12px] text-on-surface-variant">Telp: 082364381302</p>
         </div>
 
         {/* Invoice Info */}
@@ -100,6 +116,12 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
             <p className="font-bold">{transaction.patient?.name || 'Retail / Non-Pasien'}</p>
             <p className="text-on-surface-variant mt-2">Metode Pembayaran</p>
             <p className="font-bold uppercase">{transaction.paymentMethod || '-'}</p>
+            {handledBy !== '-' && (
+              <>
+                <p className="text-on-surface-variant mt-2">Ditangani Oleh</p>
+                <p className="font-bold">{handledBy}</p>
+              </>
+            )}
           </div>
         </div>
 

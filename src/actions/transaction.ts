@@ -34,7 +34,15 @@ export async function getTransactions(filters?: {
   const transactions = await prisma.transaction.findMany({
     where,
     include: {
-      patient: { select: { name: true, noRM: true } },
+      patient: { 
+        select: { 
+          name: true, 
+          noRM: true,
+          queues: {
+            include: { doctor: { select: { name: true } }, therapist: { select: { name: true } } }
+          }
+        } 
+      },
       cashier: { select: { email: true } },
       items: {
         include: {
@@ -42,6 +50,9 @@ export async function getTransactions(filters?: {
           product: { select: { name: true } },
         },
       },
+      medicalRecords: {
+        include: { doctor: { select: { name: true } } }
+      }
     },
     orderBy: { createdAt: 'desc' },
   })
@@ -53,7 +64,13 @@ export async function getTransactionById(id: string) {
   const transaction = await prisma.transaction.findUnique({
     where: { id },
     include: {
-      patient: true,
+      patient: {
+        include: {
+          queues: {
+            include: { doctor: { select: { name: true } }, therapist: { select: { name: true } } }
+          }
+        }
+      },
       cashier: { select: { email: true } },
       items: {
         include: {
@@ -61,6 +78,9 @@ export async function getTransactionById(id: string) {
           product: { select: { name: true, price: true } },
         },
       },
+      medicalRecords: {
+        include: { doctor: { select: { name: true } } }
+      }
     },
   })
   
@@ -203,6 +223,28 @@ export async function processPayment(transactionId: string, data: {
       newValue: JSON.stringify({ status: 'PAID', paymentMethod: data.paymentMethod }),
     },
   })
+
+  // Auto-create an empty medical record for the transaction
+  if (oldTx.patientId) {
+    // Try to find the latest queue to link the doctor
+    const latestQueue = await prisma.queue.findFirst({
+      where: { patientId: oldTx.patientId },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    await prisma.medicalRecord.create({
+      data: {
+        patientId: oldTx.patientId,
+        transactionId: transaction.id,
+        doctorId: latestQueue?.doctorId || null,
+        visitDate: new Date(),
+        anamnesis: null,
+        diagnosis: null,
+        treatment: null,
+        notes: null
+      }
+    });
+  }
 
   return JSON.parse(JSON.stringify(transaction))
 }
