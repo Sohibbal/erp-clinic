@@ -33,9 +33,7 @@ async function main() {
   await prisma.user.deleteMany()
   await prisma.employee.deleteMany()
 
-  // ============================================================
   // 2. EMPLOYEES
-  // ============================================================
   console.log('👥 Seeding Employees...')
   const employees = await Promise.all([
     prisma.employee.upsert({
@@ -43,9 +41,9 @@ async function main() {
       update: {},
       create: {
         id: 'emp-owner',
-        name: 'Dr. Sarah (Owner)',
+        name: 'dr. Popi Novia',
         role: 'DOCTOR',
-        specialty: 'Aesthetic Doctor',
+        specialty: 'Beauty Doctor',
         status: 'ACTIVE',
         joinDate: new Date('2023-01-01'),
       },
@@ -55,7 +53,7 @@ async function main() {
       update: {},
       create: {
         id: 'emp-kasir',
-        name: 'Budi Santoso (Kasir)',
+        name: 'Riana Wulan',
         role: 'RECEPTIONIST',
         status: 'ACTIVE',
         joinDate: new Date('2023-06-01'),
@@ -66,7 +64,7 @@ async function main() {
       update: {},
       create: {
         id: 'emp-apoteker',
-        name: 'Dewi Sartika (Apoteker)',
+        name: 'Anisa Wulandari',
         role: 'PHARMACIST',
         specialty: 'Compounding',
         status: 'ACTIVE',

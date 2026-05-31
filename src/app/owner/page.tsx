@@ -62,7 +62,7 @@ export default function OwnerDashboardPage() {
       {/* Header */}
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center mb-stack-lg gap-4">
         <div>
-          <h2 className="font-headline-lg text-headline-lg text-on-surface">Ringkasan Dasbor</h2>
+          <h2 className="font-headline-lg text-headline-lg text-on-surface">Dasbor Analitis</h2>
           <p className="font-body-md text-body-md text-on-surface-variant">Pantau performa klinik dan kesehatan bisnis Anda.</p>
         </div>
         <div className="relative">

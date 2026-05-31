@@ -41,6 +41,12 @@ export function Pricing() {
     };
 
     fetchData();
+
+    const intervalId = setInterval(() => {
+      fetchData();
+    }, 3000);
+
+    return () => clearInterval(intervalId);
   }, []);
 
   if (!isLoading && pricingServices.length === 0) return null;

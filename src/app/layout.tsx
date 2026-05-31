@@ -14,7 +14,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Sunrise — Healthy Skin & Anti Aging | Sistem Manajemen Klinik",
+  title: "Sunrise Clinic",
   description: "Sistem ERP Manajemen Klinik Kecantikan Sunrise",
 };
 

@@ -24,7 +24,7 @@ type MappedPatient = {
   lastVisitDate: string;
   lastVisitTreatment: string;
   lastVisitDoctor: string;
-  medicalHistory: { date: string; doctor: string; treatment: string; notes: string }[];
+  medicalHistory: { date: string; doctor: string; diagnosis: string; notes: string }[];
   noRM: string;
   nik: string;
   namaWali?: string;
@@ -131,7 +131,7 @@ export default function KasirDashboard() {
               return {
                 date: formatDate(r.visitDate),
                 doctor: hnd.length > 0 ? hnd.join(' & ') : 'Unknown',
-                treatment: r.treatment || '-',
+                diagnosis: r.diagnosis || '-',
                 notes: r.notes || ''
               };
             }),
@@ -384,7 +384,7 @@ export default function KasirDashboard() {
                             <span className={`font-label-md ${idx === 0 ? 'text-primary' : 'text-on-surface-variant'}`}>{record.date}</span>
                             <span className="text-[10px] text-on-surface-variant">{record.doctor}</span>
                           </div>
-                          <p className="font-body-sm font-bold text-on-surface">{record.treatment}</p>
+                          <p className="font-body-sm font-bold text-on-surface">{record.diagnosis}</p>
                           <p className="text-[11px] text-on-surface-variant line-clamp-2 mt-1">{record.notes}</p>
                         </div>
                       ))}

@@ -18,6 +18,13 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
   // Stock Movements State
   const [movements, setMovements] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'catalog' | 'activity'>('catalog');
+  
+  // Pagination State for Activity
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(10);
+  
+  const totalPages = Math.ceil(movements.length / perPage);
+  const paginatedMovements = movements.slice((page - 1) * perPage, page * perPage);
 
   useEffect(() => {
     loadData(false);
@@ -239,7 +246,7 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
               </tr>
             </thead>
             <tbody className="divide-y divide-outline-variant/20">
-              {movements.map((move: any) => {
+              {paginatedMovements.map((move: any) => {
                 const isDeduction = move.stockAfter < move.stockBefore;
                 const time = new Date(move.createdAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
                 
@@ -276,6 +283,47 @@ export function InventoryView({ role = 'apoteker' }: { role?: 'apoteker' | 'kasi
               )}
             </tbody>
           </table>
+          
+          {/* Pagination Controls */}
+          {movements.length > 0 && (
+            <div className="p-4 border-t border-outline-variant/30 flex items-center justify-between bg-white/50">
+              <div className="flex items-center gap-3">
+                <span className="text-body-sm text-on-surface-variant">Tampilkan</span>
+                <select 
+                  className="bg-surface-container border border-outline-variant/60 rounded-lg px-2 py-1 text-body-sm focus:ring-2 focus:ring-primary/20 outline-none"
+                  value={perPage}
+                  onChange={e => { setPerPage(Number(e.target.value)); setPage(1); }}
+                >
+                  <option value={5}>5</option>
+                  <option value={10}>10</option>
+                  <option value={20}>20</option>
+                </select>
+                <span className="text-body-sm text-on-surface-variant">data</span>
+              </div>
+              
+              <div className="flex items-center gap-4">
+                <span className="text-body-sm text-on-surface-variant">
+                  Menampilkan {(page - 1) * perPage + 1} - {Math.min(page * perPage, movements.length)} dari {movements.length}
+                </span>
+                <div className="flex items-center gap-1">
+                  <button 
+                    className="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors disabled:opacity-30" 
+                    onClick={() => setPage(prev => Math.max(prev - 1, 1))}
+                    disabled={page === 1}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+                  </button>
+                  <button 
+                    className="p-1.5 rounded-lg hover:bg-surface-container-high transition-colors disabled:opacity-30" 
+                    onClick={() => setPage(prev => Math.min(prev + 1, totalPages))}
+                    disabled={page === totalPages}
+                  >
+                    <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
