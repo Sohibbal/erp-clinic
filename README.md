@@ -1,19 +1,19 @@
 <div align="center">
-  <img src="https://img.shields.io/badge/Sunrise-Clinic-D4A373?style=for-the-badge&logo=medapps&logoColor=white" alt="ERP Sunrise Clinic" />
+  <img src="./public/logo.jpg" alt="Sunrise Clinic Logo" width="250" />
   
   <h1 align="center">ERP Sunrise Clinic</h1>
 
   <p align="center">
-    A comprehensive, elegantly designed Enterprise Resource Planning (ERP) web application specifically built for modern clinic management.
+    Sistem Enterprise Resource Planning (ERP) modern, elegan, dan komprehensif yang dirancang khusus untuk manajemen klinik kecantikan & estetika.
     <br />
-    <a href="#-features"><strong>Explore the docs »</strong></a>
+    <a href="#-fitur-utama"><strong>Jelajahi Fitur »</strong></a>
     <br />
     <br />
-    <a href="#-getting-started">View Demo</a>
+    <a href="#-tech-stack">Tech Stack</a>
     ·
-    <a href="#-report-bug">Report Bug</a>
+    <a href="#-panduan-instalasi">Panduan Instalasi</a>
     ·
-    <a href="#-request-feature">Request Feature</a>
+    <a href="#-alur-sistem">Alur Sistem</a>
   </p>
 
   <p align="center">
@@ -28,122 +28,191 @@
 
 ---
 
-## 🤎 About The Project
+## 📖 Tentang Projek
 
-**ERP Sunrise Clinic** is designed to streamline day-to-day clinic operations with a beautiful chocolate and cream-themed UI. Built with the latest tech stack (Next.js 14 App Router, React 19, and Tailwind CSS v4), this platform provides real-time updates and seamless management tools for the clinic owner, cashiers, and pharmacists.
+**ERP Sunrise Clinic** adalah aplikasi web modern yang dibangun untuk menyederhanakan, mengotomatisasi, dan menata seluruh operasional harian Klinik Kecantikan Sunrise. Mengusung desain antarmuka yang bersih, elegan, dan *responsive* (bernuansa *chocolate & cream*), sistem ini menyediakan pembaruan data secara *real-time* dan mencakup seluruh aspek bisnis klinik, mulai dari manajemen pasien, antrean, rekam medis, inventori, hingga laporan keuangan komprehensif.
 
-### ✨ Key Features
-
-- **🛡️ Role-Based Access Control (RBAC):** Tailored, secure interfaces for Owner, Cashier (Kasir), and Pharmacist (Apoteker).
-- **📊 Interactive Real-time Dashboards:** Automated polling ensures the Owner Dashboard stays updated with real-time revenue, transaction history, and global reports without page refreshes.
-- **💳 Advanced Cashier & POS System:** Complete point-of-sale system featuring automatic promotional pricing, service & product bundling, 2-step checkout, and dynamic EMR queue integrations.
-- **🖨️ PDF Export & Reporting:** Clean, professional layouts optimized specifically for printing invoices, global financial reports, and transaction histories.
-- **📦 Inventory Management:** Comprehensive tracking of stock levels, low-stock alerts, restock history, and product expiry dates.
-- **🧑‍⚕️ Employee & Patient CRM:** Manage staff profiles, doctors, therapists, patient records, and real-time queues.
-- **📋 Electronic Medical Records (EMR):** Digital medical records directly integrated with patient profiles, queuing, and billing histories.
+Aplikasi ini dibangun menggunakan arsitektur modern berbasis **Next.js App Router** dipadukan dengan **Server Actions**, memastikan performa yang cepat, aman, dan *SEO-friendly* tanpa perlu membangun API terpisah.
 
 ---
 
-## 🚀 Getting Started
+## ✨ Fitur Utama
 
-Follow these instructions to set up the project locally on a new device.
+Sistem ini membagi fungsionalitasnya berdasarkan peran (*Role-Based Access Control*), memastikan setiap pengguna hanya mengakses fitur yang relevan dengan tugas mereka.
 
-### Prerequisites
+### 🛡️ Role-Based Access Control (RBAC)
+- **Owner (Pemilik/Dokter Utama):** Akses penuh ke dasbor analitik, laporan pendapatan, manajemen staf, manajemen layanan, dan laporan audit.
+- **Kasir (Resepsionis):** Akses penuh ke pendaftaran pasien, manajemen antrean, proses transaksi (POS), dan cetak struk/invoice.
+- **Apoteker:** Akses khusus ke manajemen inventori, produk, penjualan retail, dan riwayat mutasi stok.
 
-Ensure you have the following installed on your local machine:
-- [Node.js](https://nodejs.org/) (v18 or higher) or [Bun](https://bun.sh/)
-- [PostgreSQL](https://www.postgresql.org/) (Local or Cloud, e.g., Supabase/Neon)
+### 📊 Dasbor Analitik & Laporan Keuangan (Owner)
+- Ringkasan statistik *real-time*: Pendapatan harian/bulanan, total pasien, dan total kunjungan.
+- Grafik pendapatan interaktif menggunakan **Recharts**.
+- Laporan transaksi mendetail yang dapat difilter berdasarkan bulan dan tahun.
+- Pelacakan aktivitas pengguna (Audit Log) untuk keamanan dan transparansi.
+
+### 💳 Point of Sale (POS) & Manajemen Transaksi
+- Proses *checkout* 2 langkah yang intuitif.
+- Kalkulasi otomatis untuk harga layanan, potongan promo/diskon, dan pembelian produk retail (skincare/obat).
+- Cetak struk dan invoice berformat PDF/Print-ready yang rapi.
+- Status pembayaran dinamis (`PENDING`, `PAID`, dll).
+
+### 🧑‍⚕️ Manajemen Pasien & Antrean (*Real-time*)
+- Registrasi pasien baru dengan data rekam medis dasar (alergi, riwayat).
+- Sistem antrean yang langsung terhubung ke kasir dan dokter/terapis.
+- Pelacakan riwayat kunjungan dan transaksi per pasien secara akurat.
+
+### 📋 Rekam Medis Elektronik (EMR)
+- Pencatatan anamnesis, diagnosis (contoh: *Acne vulgaris, Hiperpigmentasi*), dan *treatment* yang diberikan.
+- Rekam medis terintegrasi langsung dengan tagihan/transaksi kunjungan pasien.
+
+### 📦 Manajemen Inventori (Apoteker)
+- Pelacakan stok produk *real-time* (Skincare, Obat Topikal, Bahan Peeling, dll).
+- Kategorisasi produk otomatis: `IN_STOCK`, `LOW_STOCK`, `EXPIRING`, dan `OUT_OF_STOCK`.
+- Log *Stock Movement* (Mutasi Stok): Melacak setiap penambahan (`RESTOCK`), penjualan (`SALE`), penggunaan (`USAGE`), atau koreksi (`ADJUSTMENT`).
+
+---
+
+## 🛠️ Tech Stack
+
+- **Framework:** [Next.js 14](https://nextjs.org/) (App Router & Server Actions)
+- **Library UI:** [React 19](https://react.dev/)
+- **Styling:** [Tailwind CSS v4](https://tailwindcss.com/)
+- **Database ORM:** [Prisma ORM](https://www.prisma.io/)
+- **Database System:** PostgreSQL
+- **Bahasa Pemrograman:** [TypeScript](https://www.typescriptlang.org/)
+- **Visualisasi Data:** [Recharts](https://recharts.org/)
+- **Notifikasi/Toast:** [Sonner](https://sonner.emilkowal.ski/)
+
+---
+
+## 🚀 Panduan Instalasi
+
+Ikuti langkah-langkah di bawah ini untuk menjalankan ERP Sunrise Clinic di perangkat lokal Anda.
+
+### Prasyarat
+Pastikan sistem Anda sudah menginstal:
+- [Node.js](https://nodejs.org/) (v18+) atau [Bun](https://bun.sh/)
+- PostgreSQL (Lokal atau Cloud seperti Supabase/Neon/Railway)
 - Git
 
-### Installation & Setup
+### Langkah Instalasi
 
-1. **Clone the repository:**
+1. **Clone Repositori**
    ```bash
    git clone https://github.com/your-username/erp-clinic.git
    cd erp-clinic
    ```
 
-2. **Install dependencies:**
+2. **Instal Dependensi**
+   Anda bisa menggunakan NPM atau Bun (disarankan untuk kecepatan).
    ```bash
    npm install
-   # or using bun
+   # atau
    bun install
    ```
 
-3. **Set up Environment Variables:**
-   Create a `.env` file in the root directory and add your PostgreSQL database connection string:
+3. **Konfigurasi Environment Variables**
+   Buat file `.env` di *root directory* dan masukkan konfigurasi database PostgreSQL Anda.
    ```env
-   DATABASE_URL="postgresql://user:password@localhost:5432/erp_clinic?schema=public"
+   DATABASE_URL="postgresql://username:password@localhost:5432/erp_clinic?schema=public"
    ```
 
-4. **Initialize Database:**
-   Push the Prisma schema to your database to create the necessary tables:
+4. **Inisialisasi Database (Push Schema)**
+   Sinkronkan schema Prisma ke database PostgreSQL Anda untuk membuat tabel.
    ```bash
    npx prisma db push
-   # or
+   # atau
    bunx prisma db push
    ```
 
-5. **Seed the Database:**
-   Populate the database with initial mock data (services, products, and default users):
+5. **Generate Data Simulasi (Seed Database)**
+   Sistem sudah dilengkapi dengan script *seed* komprehensif yang menghasilkan data simulasi 1 tahun operasional (Pasien, Transaksi, Rekam Medis, Stok, Karyawan).
    ```bash
    npm run db:seed
-   # or
-   bun run db:seed
+   # atau
+   bun run prisma/seed.ts
    ```
 
-6. **Start the Development Server:**
+6. **Jalankan Server Development**
    ```bash
    npm run dev
-   # or
+   # atau
    bun run dev
    ```
-   Open [http://localhost:3000](http://localhost:3000) in your browser to view the application.
+   Akses aplikasi di [http://localhost:3000](http://localhost:3000).
 
 ---
 
-## 🔑 Default Credentials
+## 🔑 Akun Demo (Default Credentials)
 
-After running the seed script, you can log in using the following default accounts to test different role dashboards:
+Setelah menjalankan langkah **Seed Database**, Anda dapat mencoba login menggunakan akun demo berikut untuk melihat antarmuka masing-masing peran:
 
-| Role | Email | Password |
-| :--- | :--- | :--- |
-| **Owner** | `owner@sunrise.com` | `aura123` |
-| **Kasir** | `kasir@sunrise.com` | `aura123` |
-| **Apoteker** | `apoteker@sunrise.com` | `aura123` |
+| Role | Nama | Email | Password |
+| :--- | :--- | :--- | :--- |
+| **Owner (Dokter)** | dr. Popi Novia | `owner@sunrise.com` | `aura123` |
+| **Kasir** | Riana Wulan | `kasir@sunrise.com` | `aura123` |
+| **Apoteker** | Anisa Wulandari | `apoteker@sunrise.com` | `aura123` |
 
-*(Note: Ensure you change these credentials in a production environment)*
-
----
-
-## 📜 Available Scripts
-
-- `npm run dev` - Starts the Next.js development server.
-- `npm run build` - Builds the application for production deployment.
-- `npm run start` - Starts the production server.
-- `npm run lint` - Runs ESLint to find and fix code formatting issues.
-- `npm run db:push` - Synchronizes your Prisma schema with the database.
-- `npm run db:seed` - Executes `prisma/seed.ts` to populate the database.
-- `npm run db:studio` - Opens Prisma Studio at `localhost:5555` to view and edit database records via a visual interface.
+> **Catatan:** Pastikan untuk mengganti kata sandi default jika aplikasi akan di-*deploy* ke *production*.
 
 ---
 
-## 🤝 Contributing
+## 🏗️ Struktur Proyek & Alur Sistem
 
-Contributions are what make the open source community such an amazing place to learn, inspire, and create. Any contributions you make are **greatly appreciated**.
+Proyek ini dibangun menggunakan fitur **App Router** dari Next.js. Berikut adalah penjelasan struktur direktori utama:
 
-1. Fork the Project
-2. Create your Feature Branch (\`git checkout -b feature/AmazingFeature\`)
-3. Commit your Changes (\`git commit -m 'Add some AmazingFeature'\`)
-4. Push to the Branch (\`git push origin feature/AmazingFeature\`)
-5. Open a Pull Request
+```text
+erp-clinic/
+├── prisma/
+│   ├── schema.prisma       # Definisi tabel database dan relasi
+│   └── seed.ts             # Script generate data simulasi 1 tahun operasional
+├── public/                 # Aset publik (Logo, Font, Icon)
+├── src/
+│   ├── actions/            # Server Actions (Pengganti API routes, berisi logika backend)
+│   ├── app/                # Halaman aplikasi berbasis App Router (/, /owner, /kasir, dll)
+│   ├── components/         # Komponen UI Reusable (Button, Modal, Input)
+│   ├── features/           # Komponen spesifik per fitur (InventoryView, POS, PatientForm)
+│   └── lib/                # Konfigurasi utility (Prisma client instance, formater)
+└── package.json            # Daftar dependencies & scripts
+```
+
+### Alur Kerja (Server Actions)
+Alih-alih menggunakan traditional API routes (`/api/...`), proyek ini sepenuhnya mengadopsi **Next.js Server Actions**. Setiap kali pengguna mengirim form atau berinteraksi dengan UI, komponen Client-Side memanggil fungsi asinkron (misal: `createTransaction`) yang dieksekusi secara langsung di lingkungan Server. Ini menjamin keamanan database dan mempercepat waktu *development*.
 
 ---
 
-## 📄 License
+## 📜 Daftar Command / Scripts
 
-Distributed under the MIT License. See \`LICENSE\` for more information.
+| Perintah | Deskripsi |
+|---|---|
+| `npm run dev` | Menjalankan aplikasi dalam mode pengembangan (*development*). |
+| `npm run build` | Mengompilasi aplikasi untuk lingkungan produksi (*production*). |
+| `npm run start` | Menjalankan aplikasi hasil *build* di lingkungan produksi. |
+| `npm run lint` | Menjalankan ESLint untuk memeriksa kualitas kode. |
+| `npm run db:push` | Mengubah skema database sesuai dengan `prisma/schema.prisma`. |
+| `npm run db:seed` | Menjalankan `prisma/seed.ts` untuk mengisi database dengan data awal/demo. |
+| `npm run db:studio`| Membuka Prisma Studio di browser untuk melihat/mengedit data database. |
+
+---
+
+## 🤝 Kontribusi
+
+Kami sangat terbuka untuk kontribusi! Jika Anda ingin menambahkan fitur, memperbaiki *bug*, atau meningkatkan performa aplikasi:
+
+1. *Fork* repositori ini.
+2. Buat *branch* fitur Anda (`git checkout -b feature/FiturBaru`).
+3. *Commit* perubahan Anda (`git commit -m 'Menambahkan FiturBaru'`).
+4. *Push* ke *branch* tersebut (`git push origin feature/FiturBaru`).
+5. Buka *Pull Request* baru.
+
+---
+
+## 📄 Lisensi
+
+Didistribusikan di bawah Lisensi MIT. Bebas digunakan, dimodifikasi, dan didistribusikan untuk keperluan pribadi maupun komersial.
 
 <p align="center">
-  <i>Designed with 🤎 for a better healthcare management experience.</i>
+  <br>
+  <i>Dirancang dengan 🤎 untuk pengalaman manajemen kesehatan dan estetika yang lebih baik.</i>
 </p>

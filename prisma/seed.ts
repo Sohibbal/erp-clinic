@@ -13,9 +13,9 @@ async function hashPassword(password: string): Promise<string> {
 async function main() {
   console.log('🌱 Starting database seed...')
 
-  // ============================================================
+
   // 1. DELETE EXISTING DATA
-  // ============================================================
+
   console.log('⚠️ Clearing database...')
   await prisma.auditLog.deleteMany()
   await prisma.transactionItem.deleteMany()
@@ -73,9 +73,8 @@ async function main() {
     }),
   ])
 
-  // ============================================================
   // 3. USERS (login accounts)
-  // ============================================================
+
   console.log('🔑 Seeding Users...')
   await Promise.all([
     prisma.user.upsert({
