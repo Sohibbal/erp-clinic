@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="./public/logo.jpg" alt="Sunrise Clinic Logo" width="250" />
+  <img src="./public/logo.jpeg" alt="Sunrise Clinic Logo" width="250" />
   
   <h1 align="center">ERP Sunrise Clinic</h1>
 
