@@ -25,7 +25,7 @@ export default function BillingPage() {
   // Checkout Modal State
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [checkoutStep, setCheckoutStep] = useState<1 | 2>(1);
-  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  const [selectedServiceIds, setSelectedServiceIds] = useState<string[]>([]);
   const [selectedProducts, setSelectedProducts] = useState<{ id: string; qty: number }[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('CASH');
   const [couponQty, setCouponQty] = useState(0);
@@ -73,25 +73,49 @@ export default function BillingPage() {
   const totalTransactions = todayTx.length;
   const pendingCount = todayTx.filter(t => t.status === 'PENDING').length;
 
-  const handleServiceChange = (serviceId: string) => {
-    setSelectedServiceId(serviceId);
-    const service = services.find(s => s.id === serviceId);
-    if (service && service.linkedProducts) {
-      setSelectedProducts(service.linkedProducts.map((lp: any) => ({
-        id: lp.productId,
-        qty: lp.defaultQty || 1
-      })));
-    } else {
-      setSelectedProducts([]);
-    }
+  const toggleService = (serviceId: string) => {
+    setSelectedServiceIds(prev => {
+      const isSelected = prev.includes(serviceId);
+      const newSelected = isSelected ? prev.filter(id => id !== serviceId) : [...prev, serviceId];
+
+      setSelectedProducts(prevProds => {
+        const updated = [...prevProds];
+        newSelected.forEach(sId => {
+          const s = services.find(serv => serv.id === sId);
+          if (s && s.linkedProducts) {
+            s.linkedProducts.forEach((lp: any) => {
+              if (!updated.find(p => p.id === lp.productId)) {
+                updated.push({ id: lp.productId, qty: lp.defaultQty || 1 });
+              }
+            });
+          }
+        });
+        return updated;
+      });
+
+      return newSelected;
+    });
   };
 
   const handleOpenProcessModal = (id: string) => {
     setProcessingId(id);
     setCheckoutStep(1);
     setCouponQty(0);
-    const initialServiceId = services[0]?.id || '';
-    handleServiceChange(initialServiceId);
+    const tx = transactions.find(t => t.id === id);
+    const queueService = tx?.patient?.queues?.[0]?.serviceName;
+    const initialService = services.find(s => s.name === queueService) || services[0];
+    const initialServiceId = initialService?.id || '';
+    
+    setSelectedServiceIds([initialServiceId]);
+    
+    if (initialService && initialService.linkedProducts) {
+      setSelectedProducts(initialService.linkedProducts.map((lp: any) => ({
+        id: lp.productId,
+        qty: lp.defaultQty || 1
+      })));
+    } else {
+      setSelectedProducts([]);
+    }
     setSelectedMethod('CASH');
   };
 
@@ -129,12 +153,17 @@ export default function BillingPage() {
   };
 
   const calculateSubtotal = () => {
-    const service = services.find(s => s.id === selectedServiceId);
-    const linkedProductIds = service?.linkedProducts?.map((lp: any) => lp.productId) || [];
-    let total = getServicePrice(service);
+    const selectedServicesList = services.filter(s => selectedServiceIds.includes(s.id));
+    const linkedProductIds = new Set<string>();
+    let total = 0;
+    
+    selectedServicesList.forEach(service => {
+      total += getServicePrice(service);
+      service.linkedProducts?.forEach((lp: any) => linkedProductIds.add(lp.productId));
+    });
     
     selectedProducts.forEach(sp => {
-      if (!linkedProductIds.includes(sp.id)) {
+      if (!linkedProductIds.has(sp.id)) {
         const p = products.find(prod => prod.id === sp.id);
         if (p) total += Number(p.price) * sp.qty;
       }
@@ -145,11 +174,12 @@ export default function BillingPage() {
   const confirmPayment = async () => {
     if (!processingId) return;
     
-    const service = services.find(s => s.id === selectedServiceId);
-    const linkedProductIds = service?.linkedProducts?.map((lp: any) => lp.productId) || [];
+    const selectedServicesList = services.filter(s => selectedServiceIds.includes(s.id));
+    const linkedProductIds = new Set<string>();
     
     const items: any[] = [];
-    if (service) {
+    
+    selectedServicesList.forEach(service => {
       items.push({
         itemType: 'SERVICE' as const,
         serviceId: service.id,
@@ -157,12 +187,13 @@ export default function BillingPage() {
         quantity: 1,
         unitPrice: getServicePrice(service)
       });
-    }
+      service.linkedProducts?.forEach((lp: any) => linkedProductIds.add(lp.productId));
+    });
 
     selectedProducts.forEach(sp => {
       const p = products.find(prod => prod.id === sp.id);
       if (p) {
-        const isLinked = linkedProductIds.includes(p.id);
+        const isLinked = linkedProductIds.has(p.id);
         items.push({
           itemType: 'PRODUCT' as const,
           productId: p.id,
@@ -432,29 +463,44 @@ export default function BillingPage() {
                   {/* Step 1: Services & Products */}
                   <div>
                     <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-2">Pilih Layanan Utama</label>
-                    <select 
-                      className="w-full py-3 px-4 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all font-body-md" 
-                      value={selectedServiceId} 
-                      onChange={e => handleServiceChange(e.target.value)}
-                    >
+                    <div className="space-y-2 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
                       {services.map(s => {
                         const finalPrice = getServicePrice(s);
                         const originalPrice = Number(s.basePrice || 0);
-                        const label = finalPrice < originalPrice 
-                          ? `${s.name} - ${formatCurrency(finalPrice)} (Promo)` 
-                          : `${s.name} - ${formatCurrency(originalPrice)}`;
+                        const isSelected = selectedServiceIds.includes(s.id);
                         return (
-                          <option key={s.id} value={s.id}>{label}</option>
+                          <div key={s.id} className={`flex justify-between items-center p-3 rounded-xl border cursor-pointer transition-all ${isSelected ? 'border-primary bg-primary-container/10' : 'border-outline-variant/40 hover:bg-surface-container-low'}`} onClick={() => toggleService(s.id)}>
+                            <div className="flex items-center gap-3 flex-1">
+                              <input 
+                                type="checkbox" 
+                                checked={isSelected} 
+                                readOnly
+                                className="w-4 h-4 text-primary focus:ring-primary rounded cursor-pointer"
+                              />
+                              <div>
+                                <p className="font-body-md font-semibold text-on-surface">{s.name}</p>
+                              </div>
+                            </div>
+                            <div className="font-label-md text-primary">
+                              {finalPrice < originalPrice ? (
+                                <span>{formatCurrency(finalPrice)} <span className="text-[10px] text-error line-through ml-1">{formatCurrency(originalPrice)}</span></span>
+                              ) : (
+                                formatCurrency(originalPrice)
+                              )}
+                            </div>
+                          </div>
                         );
                       })}
-                    </select>
+                    </div>
                   </div>
 
                   {(() => {
-                    const selectedService = services.find(s => s.id === selectedServiceId);
-                    const linkedProductIds = selectedService?.linkedProducts?.map((lp: any) => lp.productId) || [];
-                    const linkedProductsList = products.filter(p => linkedProductIds.includes(p.id));
-                    const optionalProductsList = products.filter(p => !linkedProductIds.includes(p.id));
+                    const selectedServicesList = services.filter(s => selectedServiceIds.includes(s.id));
+                    const linkedProductIds = new Set<string>();
+                    selectedServicesList.forEach(s => s.linkedProducts?.forEach((lp: any) => linkedProductIds.add(lp.productId)));
+                    
+                    const linkedProductsList = products.filter(p => linkedProductIds.has(p.id));
+                    const optionalProductsList = products.filter(p => !linkedProductIds.has(p.id));
 
                     const renderProductRow = (p: any, isLinked: boolean) => {
                       const isSelected = selectedProducts.some(sp => sp.id === p.id);

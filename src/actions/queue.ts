@@ -62,7 +62,22 @@ export async function addToQueue(data: {
   })
 
   // Create an empty pending transaction for the billing page
-  const invoiceId = `#INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Date.now()).slice(-3)}`
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const dateStr = String(now.getDate()).padStart(2, '0')
+  const datePrefix = `${year}${month}${dateStr}`
+
+  const todayCount = await prisma.transaction.count({
+    where: {
+      createdAt: {
+        gte: today,
+        lte: tomorrow,
+      },
+    },
+  })
+
+  const invoiceId = `#INV-${datePrefix}-${todayCount + 1}`
   await prisma.transaction.create({
     data: {
       invoiceId,

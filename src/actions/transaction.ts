@@ -111,7 +111,25 @@ export async function createTransaction(data: {
   const discount = data.discountAmount || 0
   const totalAmount = subtotal - discount
 
-  const invoiceId = `#INV-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(Date.now()).slice(-3)}`
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const date = String(now.getDate()).padStart(2, '0')
+  const datePrefix = `${year}${month}${date}`
+
+  const startOfDay = new Date(year, now.getMonth(), now.getDate(), 0, 0, 0, 0)
+  const endOfDay = new Date(year, now.getMonth(), now.getDate(), 23, 59, 59, 999)
+
+  const todayCount = await prisma.transaction.count({
+    where: {
+      createdAt: {
+        gte: startOfDay,
+        lte: endOfDay,
+      },
+    },
+  })
+
+  const invoiceId = `#INV-${datePrefix}-${todayCount + 1}`
 
   const transaction = await prisma.transaction.create({
     data: {
