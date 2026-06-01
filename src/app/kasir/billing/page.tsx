@@ -28,6 +28,7 @@ export default function BillingPage() {
   const [selectedServiceId, setSelectedServiceId] = useState<string>('');
   const [selectedProducts, setSelectedProducts] = useState<{ id: string; qty: number }[]>([]);
   const [selectedMethod, setSelectedMethod] = useState<PaymentMethod>('CASH');
+  const [couponQty, setCouponQty] = useState(0);
 
   useEffect(() => {
     async function loadData() {
@@ -88,12 +89,16 @@ export default function BillingPage() {
   const handleOpenProcessModal = (id: string) => {
     setProcessingId(id);
     setCheckoutStep(1);
+    setCouponQty(0);
     const initialServiceId = services[0]?.id || '';
     handleServiceChange(initialServiceId);
     setSelectedMethod('CASH');
   };
 
   const toggleProduct = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product || product.stock === 0) return;
+
     setSelectedProducts(prev => 
       prev.some(p => p.id === productId) 
         ? prev.filter(p => p.id !== productId)
@@ -103,6 +108,9 @@ export default function BillingPage() {
 
   const updateQty = (productId: string, qty: number) => {
     if (qty < 1) return;
+    const product = products.find(p => p.id === productId);
+    if (!product || qty > product.stock) return;
+    
     setSelectedProducts(prev => prev.map(p => p.id === productId ? { ...p, qty } : p));
   };
 
@@ -131,7 +139,7 @@ export default function BillingPage() {
         if (p) total += Number(p.price) * sp.qty;
       }
     });
-    return total;
+    return Math.max(0, total - (couponQty * 25000));
   };
 
   const confirmPayment = async () => {
@@ -168,7 +176,8 @@ export default function BillingPage() {
     try {
       await processPayment(processingId, {
         paymentMethod: selectedMethod,
-        items
+        items,
+        discountAmount: couponQty * 25000
       });
       
       
@@ -450,18 +459,20 @@ export default function BillingPage() {
                     const renderProductRow = (p: any, isLinked: boolean) => {
                       const isSelected = selectedProducts.some(sp => sp.id === p.id);
                       const qty = selectedProducts.find(sp => sp.id === p.id)?.qty || 1;
+                      const isOutOfStock = p.stock === 0;
                       return (
-                        <div key={p.id} className={`flex justify-between items-center p-3 rounded-xl border transition-all ${isSelected ? 'border-primary bg-primary-container/10' : 'border-outline-variant/40 hover:bg-surface-container-low'}`}>
-                          <div className="flex items-center gap-3 flex-1 cursor-pointer" onClick={() => toggleProduct(p.id)}>
+                        <div key={p.id} className={`flex justify-between items-center p-3 rounded-xl border transition-all ${isSelected ? 'border-primary bg-primary-container/10' : 'border-outline-variant/40 hover:bg-surface-container-low'} ${isOutOfStock ? 'opacity-50' : ''}`}>
+                          <div className={`flex items-center gap-3 flex-1 ${!isOutOfStock && 'cursor-pointer'}`} onClick={() => !isOutOfStock && toggleProduct(p.id)}>
                             <input 
                               type="checkbox" 
                               checked={isSelected} 
+                              disabled={isOutOfStock}
                               readOnly
-                              className="w-4 h-4 text-primary focus:ring-primary rounded cursor-pointer"
+                              className={`w-4 h-4 text-primary focus:ring-primary rounded ${isOutOfStock ? 'cursor-not-allowed' : 'cursor-pointer'}`}
                             />
                             <div>
-                              <p className="font-body-md font-semibold text-on-surface">{p.name}</p>
-                              <p className="text-[11px] text-on-surface-variant">{p.category}</p>
+                              <p className="font-body-md font-semibold text-on-surface">{p.name} {isOutOfStock && <span className="text-error text-[10px] ml-1">(Habis)</span>}</p>
+                              <p className="text-[11px] text-on-surface-variant">{p.category} • Sisa Stok: {p.stock}</p>
                             </div>
                           </div>
                           
@@ -471,7 +482,7 @@ export default function BillingPage() {
                             ) : (
                               <span className="font-label-md text-primary">{formatCurrency(Number(p.price || 0))}</span>
                             )}
-                            {isSelected && (
+                            {isSelected && !isOutOfStock && (
                               <div className="flex items-center gap-2 bg-surface-container-high rounded-lg p-1 border border-outline-variant/30" onClick={(e) => e.stopPropagation()}>
                                 <button 
                                   className="w-6 h-6 flex items-center justify-center rounded bg-white text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50"
@@ -482,8 +493,9 @@ export default function BillingPage() {
                                 </button>
                                 <span className="font-label-md text-[12px] w-4 text-center">{qty}</span>
                                 <button 
-                                  className="w-6 h-6 flex items-center justify-center rounded bg-white text-on-surface hover:bg-surface-container-highest transition-colors"
+                                  className="w-6 h-6 flex items-center justify-center rounded bg-white text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50"
                                   onClick={() => updateQty(p.id, qty + 1)}
+                                  disabled={qty >= p.stock}
                                 >
                                   +
                                 </button>
@@ -513,6 +525,40 @@ export default function BillingPage() {
                             </div>
                           </div>
                         )}
+
+                        <div>
+                          <label className="font-label-md text-label-md text-on-surface-variant uppercase block mb-2">Kupon Potongan Harga (Opsional)</label>
+                          <div className="flex justify-between items-center p-3 rounded-xl border border-outline-variant/40 bg-surface-container-lowest">
+                            <div className="flex items-center gap-3">
+                              <span className="material-symbols-outlined text-primary">redeem</span>
+                              <div>
+                                <p className="font-body-md font-semibold text-on-surface">Voucher Rp25.000</p>
+                                <p className="text-[11px] text-on-surface-variant">Berlaku kelipatan</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3">
+                              <div className="flex items-center gap-2 bg-surface-container-high rounded-lg p-1 border border-outline-variant/30">
+                                <button 
+                                  className="w-8 h-8 flex items-center justify-center rounded bg-white text-on-surface hover:bg-surface-container-highest transition-colors disabled:opacity-50"
+                                  onClick={() => setCouponQty(prev => Math.max(0, prev - 1))}
+                                  disabled={couponQty <= 0}
+                                >
+                                  -
+                                </button>
+                                <span className="font-label-md text-[14px] w-6 text-center">{couponQty}</span>
+                                <button 
+                                  className="w-8 h-8 flex items-center justify-center rounded bg-white text-on-surface hover:bg-surface-container-highest transition-colors"
+                                  onClick={() => setCouponQty(prev => prev + 1)}
+                                >
+                                  +
+                                </button>
+                              </div>
+                              {couponQty > 0 && (
+                                <span className="font-label-md text-error font-bold w-24 text-right">- {formatCurrency(couponQty * 25000)}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     );
                   })()}

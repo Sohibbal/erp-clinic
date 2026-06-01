@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { getTransactions } from '@/actions/transaction';
+import { getTransactions, updateTransaction, deleteTransaction } from '@/actions/transaction';
 import { formatCurrency } from '@/lib/utils';
 import type { PaymentMethod, TransactionStatus } from '@/generated/prisma/client';
 
@@ -29,6 +29,11 @@ export default function OwnerRevenuePage() {
   
   const [transactions, setTransactions] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+
+  // Edit/Delete state
+  const [editingTransaction, setEditingTransaction] = useState<any>(null);
+  const [deletingTransactionId, setDeletingTransactionId] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -79,6 +84,43 @@ export default function OwnerRevenuePage() {
     'QRIS': 'qr_code_2',
     'TRANSFER': 'account_balance',
     'CASH': 'payments',
+  };
+
+  const handleUpdate = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingTransaction) return;
+    setIsUpdating(true);
+    try {
+      const updated = await updateTransaction(editingTransaction.id, {
+        status: editingTransaction.status,
+        paymentMethod: editingTransaction.paymentMethod,
+        totalAmount: Number(editingTransaction.totalAmount),
+        discountAmount: Number(editingTransaction.discountAmount || 0),
+        notes: editingTransaction.notes
+      });
+      setTransactions(prev => prev.map(t => t.id === updated.id ? { ...t, ...updated } : t));
+      setEditingTransaction(null);
+      toast.success('Transaksi berhasil diperbarui');
+    } catch (error) {
+      toast.error('Gagal memperbarui transaksi');
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deletingTransactionId) return;
+    setIsUpdating(true);
+    try {
+      await deleteTransaction(deletingTransactionId);
+      setTransactions(prev => prev.filter(t => t.id !== deletingTransactionId));
+      setDeletingTransactionId(null);
+      toast.success('Transaksi berhasil dihapus');
+    } catch (error) {
+      toast.error('Gagal menghapus transaksi');
+    } finally {
+      setIsUpdating(false);
+    }
   };
 
   if (isLoading) {
@@ -269,6 +311,7 @@ export default function OwnerRevenuePage() {
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Jumlah</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-right">Status</th>
               <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-center">Rekam Medis</th>
+              <th className="px-6 py-4 font-label-md text-label-md text-on-surface-variant uppercase tracking-wider text-center">Aksi</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-outline-variant/20">
@@ -343,6 +386,24 @@ export default function OwnerRevenuePage() {
                     <span className="text-on-surface-variant/50 font-body-sm">-</span>
                   )}
                 </td>
+                <td className="px-6 py-4 text-center">
+                  <div className="flex items-center justify-center gap-2">
+                    <button 
+                      onClick={() => setEditingTransaction(tx)}
+                      className="p-1.5 rounded-lg text-primary hover:bg-primary-container/30 transition-colors"
+                      title="Edit Transaksi"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">edit</span>
+                    </button>
+                    <button 
+                      onClick={() => setDeletingTransactionId(tx.id)}
+                      className="p-1.5 rounded-lg text-error hover:bg-error-container/30 transition-colors"
+                      title="Hapus Transaksi"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">delete</span>
+                    </button>
+                  </div>
+                </td>
               </tr>
               );
             })}
@@ -393,6 +454,101 @@ export default function OwnerRevenuePage() {
           </div>
         )}
       </div>
+
+      {/* Edit Modal */}
+      {editingTransaction && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setEditingTransaction(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-6 border-b border-outline-variant/30 flex justify-between items-center bg-surface-container-lowest">
+              <h3 className="font-headline-md text-headline-md text-primary">Edit Transaksi {editingTransaction.invoiceId}</h3>
+              <button className="text-on-surface-variant hover:text-error transition-colors" onClick={() => setEditingTransaction(null)}>
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleUpdate} className="p-6 space-y-4">
+              <div>
+                <label className="font-label-md text-label-md text-on-surface-variant block mb-1">Status Pembayaran</label>
+                <select 
+                  className="w-full py-2 px-3 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none"
+                  value={editingTransaction.status}
+                  onChange={e => setEditingTransaction({...editingTransaction, status: e.target.value})}
+                >
+                  <option value="PAID">LUNAS</option>
+                  <option value="PENDING">TERTUNDA</option>
+                </select>
+              </div>
+              <div>
+                <label className="font-label-md text-label-md text-on-surface-variant block mb-1">Metode Pembayaran</label>
+                <select 
+                  className="w-full py-2 px-3 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none"
+                  value={editingTransaction.paymentMethod || 'CASH'}
+                  onChange={e => setEditingTransaction({...editingTransaction, paymentMethod: e.target.value})}
+                >
+                  <option value="CASH">CASH</option>
+                  <option value="QRIS">QRIS</option>
+                  <option value="TRANSFER">TRANSFER</option>
+                </select>
+              </div>
+              <div>
+                <label className="font-label-md text-label-md text-on-surface-variant block mb-1">Total Pembayaran (IDR)</label>
+                <input 
+                  type="number"
+                  className="w-full py-2 px-3 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none"
+                  value={editingTransaction.totalAmount}
+                  onChange={e => setEditingTransaction({...editingTransaction, totalAmount: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="font-label-md text-label-md text-on-surface-variant block mb-1">Diskon (Opsional)</label>
+                <input 
+                  type="number"
+                  className="w-full py-2 px-3 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none"
+                  value={editingTransaction.discountAmount || 0}
+                  onChange={e => setEditingTransaction({...editingTransaction, discountAmount: e.target.value})}
+                />
+              </div>
+              <div>
+                <label className="font-label-md text-label-md text-on-surface-variant block mb-1">Catatan</label>
+                <textarea 
+                  className="w-full py-2 px-3 bg-surface-container-low border border-outline-variant/60 rounded-xl focus:ring-2 focus:ring-primary/20 outline-none resize-none"
+                  rows={3}
+                  value={editingTransaction.notes || ''}
+                  onChange={e => setEditingTransaction({...editingTransaction, notes: e.target.value})}
+                />
+              </div>
+              <div className="pt-4 flex justify-end gap-3 border-t border-outline-variant/30">
+                <button type="button" onClick={() => setEditingTransaction(null)} className="px-5 py-2.5 font-label-md text-label-md rounded-xl text-on-surface hover:bg-surface-container transition-colors">
+                  Batal
+                </button>
+                <button type="submit" disabled={isUpdating} className="px-5 py-2.5 font-label-md text-label-md rounded-xl bg-primary text-white hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-70">
+                  {isUpdating ? 'Menyimpan...' : 'Simpan Perubahan'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {deletingTransactionId && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4" onClick={() => setDeletingTransactionId(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden p-6 text-center" onClick={e => e.stopPropagation()}>
+            <div className="w-16 h-16 bg-error/10 text-error rounded-full flex items-center justify-center mx-auto mb-4">
+              <span className="material-symbols-outlined text-[32px]">warning</span>
+            </div>
+            <h3 className="font-headline-md text-headline-md text-on-surface mb-2">Hapus Transaksi?</h3>
+            <p className="text-body-md text-on-surface-variant mb-6">Tindakan ini tidak dapat dibatalkan. Data riwayat transaksi, stok terkait, dan rekam medis juga akan terdampak.</p>
+            <div className="flex justify-center gap-3">
+              <button onClick={() => setDeletingTransactionId(null)} className="flex-1 px-4 py-2 font-label-md rounded-xl border border-outline-variant hover:bg-surface-container-low transition-colors">
+                Batal
+              </button>
+              <button onClick={handleDelete} disabled={isUpdating} className="flex-1 px-4 py-2 font-label-md rounded-xl bg-error text-white hover:bg-error/90 transition-colors shadow-sm disabled:opacity-70">
+                {isUpdating ? 'Menghapus...' : 'Ya, Hapus'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

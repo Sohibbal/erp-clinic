@@ -12,7 +12,7 @@ export function Hero() {
               <span className="font-label-md text-label-md text-on-surface-variant uppercase tracking-wider">Klinik Estetika & Kecantikan Premium</span>
             </div>
             <h1 className="font-display-lg text-display-lg text-on-background lg:text-[56px] lg:leading-[64px] animate-fade-in-up delay-100">
-              Temukan Versi Terbaik Diri Anda di <span className="text-primary">Sunrise Clinic</span>
+              Temukan Versi Terbaik Diri Anda di <span className="text-primary">Sunrise Healthy Skin & Anti Aging</span>
             </h1>
             <p className="font-body-lg text-body-lg text-on-surface-variant max-w-xl animate-fade-in-up delay-200">
               Rasakan pengalaman perawatan estetika mewah dan profesional. Kami hadir dengan teknologi terkini dan tenaga ahli terbaik untuk memancarkan kecantikan alami serta memberikan kenyamanan paripurna bagi Anda.

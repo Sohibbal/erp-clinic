@@ -60,6 +60,15 @@ export function OwnerSideNavBar() {
           <span className="font-label-md text-label-md">Manajemen Karyawan</span>
         </Link>
         <Link 
+          href="/owner/payroll" 
+          className={pathname === '/owner/payroll' 
+            ? "bg-primary-container text-on-primary-container rounded-xl mx-2 my-1 px-4 py-3 flex items-center gap-3 transition-all duration-200"
+            : "text-on-surface-variant mx-2 my-1 px-4 py-3 flex items-center gap-3 hover:bg-surface-container-high/50 rounded-xl transition-all duration-200"}
+        >
+          <span className="material-symbols-outlined">payments</span>
+          <span className="font-label-md text-label-md">Penggajian Karyawan</span>
+        </Link>
+        <Link 
           href="/owner/services" 
           className={pathname === '/owner/services' 
             ? "bg-primary-container text-on-primary-container rounded-xl mx-2 my-1 px-4 py-3 flex items-center gap-3 transition-all duration-200"

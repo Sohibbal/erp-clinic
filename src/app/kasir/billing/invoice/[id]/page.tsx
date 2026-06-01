@@ -73,8 +73,94 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
   if (therapistName) handlers.push(therapistName);
   const handledBy = handlers.length > 0 ? handlers.join(' & ') : '-';
 
+  const renderReceipt = () => (
+    <div className="w-full max-w-[600px] mx-auto p-4 print:p-0 print:max-w-none print:w-full space-y-1.5 font-mono text-[12px] print:text-[10px]">
+      {/* Header */}
+      <div className="text-center border-b-2 border-dashed border-outline-variant/50 pb-1.5">
+        <div className="mb-1">
+          <h1 className="text-[20px] font-black tracking-[0.2em] leading-tight">SUNRISE</h1>
+          <h2 className="text-[11px] font-bold tracking-widest mt-0.5">HEALTHY SKIN & ANTI AGING</h2>
+        </div>
+        <p className="text-[9px] text-on-surface-variant mt-1.5">
+          Jl. Sei Rumbai, Kota Lama, Kunto Darussalam, Rokan Hulu, Riau • Telp: 082362187886
+        </p>
+      </div>
+
+      {/* Invoice Info */}
+      <div className="flex justify-between text-[11px] pb-1.5 border-b-2 border-dashed border-outline-variant/50">
+        <div>
+          <p className="text-on-surface-variant">No. Faktur</p>
+          <p className="font-bold">{transaction.invoiceId}</p>
+          <p className="text-on-surface-variant mt-1.5">Waktu Transaksi</p>
+          <p className="font-bold">{txDate} • {txTime}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-on-surface-variant">Nama Pasien</p>
+          <p className="font-bold">{transaction.patient?.name || 'Retail / Non-Pasien'}</p>
+          <p className="text-on-surface-variant mt-1.5">Metode Pembayaran</p>
+          <p className="font-bold uppercase">{transaction.paymentMethod || '-'}</p>
+          {handledBy !== '-' && (
+            <>
+              <p className="text-on-surface-variant mt-1.5">Ditangani Oleh</p>
+              <p className="font-bold">{handledBy}</p>
+            </>
+          )}
+        </div>
+      </div>
+
+      {/* Rincian Transaksi */}
+      <div>
+        <h3 className="font-bold text-[12px] uppercase tracking-wider mb-1.5">Rincian Layanan & Produk</h3>
+        <div className="space-y-1.5 text-[11px]">
+          {transaction.items.map((item: any) => (
+            <div key={item.id} className="flex justify-between items-start pl-3 border-l-2 border-outline-variant/30">
+              <div>
+                <p className="font-bold">{item.itemName}</p>
+                <p className="text-[9px] text-on-surface-variant mt-0.5">
+                  {item.itemType === 'SERVICE' ? 'Layanan' : 'Produk'} • {item.quantity} x {formatCurrency(Number(item.unitPrice))}
+                </p>
+              </div>
+              <p className="font-semibold">{formatCurrency(Number(item.subtotal))}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Totals */}
+      <div className="pt-1.5 border-t-2 border-dashed border-outline-variant/50">
+        <div className="flex justify-between items-center mb-1.5">
+          <span className="text-[12px] text-on-surface-variant">Subtotal</span>
+          <span className="font-semibold">{formatCurrency(Number(transaction.subtotal))}</span>
+        </div>
+        {Number(transaction.discountAmount) > 0 && (
+          <div className="flex justify-between items-center mb-1.5 text-green-600">
+            <span className="text-[12px]">Diskon</span>
+            <span className="font-semibold">-{formatCurrency(Number(transaction.discountAmount))}</span>
+          </div>
+        )}
+        <div className="flex justify-between items-center mt-1.5 pt-1.5 border-t border-outline-variant/30">
+          <span className="font-bold text-[14px] uppercase tracking-widest">Total Lunas</span>
+          <span className="font-bold text-[16px]">{formatCurrency(Number(transaction.totalAmount))}</span>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="pt-1.5 text-center text-[8px] text-on-surface-variant">
+        <p>Terima kasih atas kunjungan Anda!</p>
+        <p>Barang/Produk yang sudah dibeli tidak dapat ditukar/dikembalikan.</p>
+      </div>
+    </div>
+  );
+
   return (
-    <div className="bg-white min-h-screen text-on-surface print:bg-white print:m-0 print:p-0">
+    <div className="bg-white min-h-screen text-on-surface print:bg-white print:m-0 print:p-0 print:h-[99vh] print:overflow-hidden">
+      <style dangerouslySetInnerHTML={{
+        __html: `
+        @media print {
+          @page { size: A5 landscape; margin: 0.5cm; }
+        }
+      `}} />
+
       {/* Floating Action Buttons (Hidden on Print) */}
       <div className="fixed bottom-10 right-10 z-50 print:hidden flex flex-col gap-4">
         <Link
@@ -93,78 +179,18 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
         </button>
       </div>
 
-      {/* A4/Receipt Document Container */}
-      <div className="max-w-[600px] mx-auto p-10 print:p-0 print:max-w-none print:w-full space-y-8 font-mono">
+      {/* Display single receipt on screen */}
+      <div className="print:hidden">
+        {renderReceipt()}
+      </div>
 
-        {/* Header */}
-        <div className="text-center border-b-2 border-dashed border-outline-variant/50 pb-6">
-          <h1 className="text-[28px] font-bold tracking-widest mb-1">SUNRISE CLINIC</h1>
-          <p className="text-[12px] text-on-surface-variant">Jl. Sei Rumbai, Kota Lama, Kunto Darussalam, Rokan Hulu, Riau</p>
-          <p className="text-[12px] text-on-surface-variant">Telp: 082364381302</p>
+      {/* Display double receipts side-by-side on print */}
+      <div className="hidden print:flex print:flex-row print:justify-between print:w-full print:gap-4 print:p-0">
+        <div className="flex-1 border-r-2 border-dashed border-outline-variant/50 pr-4">
+          {renderReceipt()}
         </div>
-
-        {/* Invoice Info */}
-        <div className="flex justify-between text-[13px] pb-4 border-b-2 border-dashed border-outline-variant/50">
-          <div>
-            <p className="text-on-surface-variant">No. Faktur</p>
-            <p className="font-bold">{transaction.invoiceId}</p>
-            <p className="text-on-surface-variant mt-2">Waktu Transaksi</p>
-            <p className="font-bold">{txDate} • {txTime}</p>
-          </div>
-          <div className="text-right">
-            <p className="text-on-surface-variant">Nama Pasien</p>
-            <p className="font-bold">{transaction.patient?.name || 'Retail / Non-Pasien'}</p>
-            <p className="text-on-surface-variant mt-2">Metode Pembayaran</p>
-            <p className="font-bold uppercase">{transaction.paymentMethod || '-'}</p>
-            {handledBy !== '-' && (
-              <>
-                <p className="text-on-surface-variant mt-2">Ditangani Oleh</p>
-                <p className="font-bold">{handledBy}</p>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Rincian Transaksi */}
-        <div>
-          <h3 className="font-bold text-[14px] uppercase tracking-wider mb-4">Rincian Layanan & Produk</h3>
-          <div className="space-y-4 text-[13px]">
-            {transaction.items.map((item: any) => (
-              <div key={item.id} className="flex justify-between items-start pl-4 border-l-2 border-outline-variant/30">
-                <div>
-                  <p className="font-bold">{item.itemName}</p>
-                  <p className="text-[11px] text-on-surface-variant">
-                    {item.itemType === 'SERVICE' ? 'Layanan Utama' : 'Produk'} • {item.quantity} x {formatCurrency(Number(item.unitPrice))}
-                  </p>
-                </div>
-                <p>{formatCurrency(Number(item.subtotal))}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Totals */}
-        <div className="pt-4 border-t-2 border-dashed border-outline-variant/50">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-[14px] text-on-surface-variant">Subtotal</span>
-            <span>{formatCurrency(Number(transaction.subtotal))}</span>
-          </div>
-          {Number(transaction.discountAmount) > 0 && (
-            <div className="flex justify-between items-center mb-2 text-green-600">
-              <span className="text-[14px]">Diskon</span>
-              <span>-{formatCurrency(Number(transaction.discountAmount))}</span>
-            </div>
-          )}
-          <div className="flex justify-between items-center mt-4 pt-4 border-t border-outline-variant/30">
-            <span className="font-bold text-[16px] uppercase tracking-widest">Total Lunas</span>
-            <span className="font-bold text-[20px]">{formatCurrency(Number(transaction.totalAmount))}</span>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="pt-8 text-center text-[11px] text-on-surface-variant">
-          <p>Terima kasih atas kunjungan Anda!</p>
-          <p>Barang/Produk yang sudah dibeli tidak dapat ditukar/dikembalikan.</p>
+        <div className="flex-1 pl-4">
+          {renderReceipt()}
         </div>
       </div>
     </div>

@@ -34,7 +34,7 @@ export function SocialMedia() {
               <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect><path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"></path><line x1="17.5" y1="6.5" x2="17.51" y2="6.5"></line></svg>
             </div>
             <h3 className="font-headline-sm text-headline-sm text-on-background mb-2">Instagram</h3>
-            <p className="font-body-md text-body-md text-on-surface-variant mb-6">@sunrise.clinic</p>
+            <p className="font-body-md text-body-md text-on-surface-variant mb-6">@sunrisehealthyskin</p>
             <span className="text-primary font-label-md mt-auto group-hover:underline">Ikuti Kami</span>
           </a>
 
@@ -44,7 +44,7 @@ export function SocialMedia() {
               <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"></path></svg>
             </div>
             <h3 className="font-headline-sm text-headline-sm text-on-background mb-2">TikTok</h3>
-            <p className="font-body-md text-body-md text-on-surface-variant mb-6">@sunrise.clinic</p>
+            <p className="font-body-md text-body-md text-on-surface-variant mb-6">@sunrisehealthyskin</p>
             <span className="text-primary font-label-md mt-auto group-hover:underline">Tonton Video</span>
           </a>
 
@@ -54,7 +54,7 @@ export function SocialMedia() {
               <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"></path></svg>
             </div>
             <h3 className="font-headline-sm text-headline-sm text-on-background mb-2">Facebook</h3>
-            <p className="font-body-md text-body-md text-on-surface-variant mb-6">Sunrise Clinic</p>
+            <p className="font-body-md text-body-md text-on-surface-variant mb-6">Sunrise Healthy Skin</p>
             <span className="text-primary font-label-md mt-auto group-hover:underline">Ikuti Kami</span>
           </a>
 
@@ -64,7 +64,7 @@ export function SocialMedia() {
               <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path></svg>
             </div>
             <h3 className="font-headline-sm text-headline-sm text-on-background mb-2">WhatsApp</h3>
-            <p className="font-body-md text-body-md text-on-surface-variant mb-6">082364381302</p>
+            <p className="font-body-md text-body-md text-on-surface-variant mb-6">082362187886</p>
             <span className="text-primary font-label-md mt-auto group-hover:underline">Mulai Chat</span>
           </a>
         </div>

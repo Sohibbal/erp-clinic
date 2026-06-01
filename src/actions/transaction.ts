@@ -51,7 +51,10 @@ export async function getTransactions(filters?: {
         },
       },
       medicalRecords: {
-        include: { doctor: { select: { name: true } } }
+        include: { 
+          doctor: { select: { name: true } },
+          therapist: { select: { name: true } }
+        }
       }
     },
     orderBy: { createdAt: 'desc' },
@@ -79,7 +82,10 @@ export async function getTransactionById(id: string) {
         },
       },
       medicalRecords: {
-        include: { doctor: { select: { name: true } } }
+        include: { 
+          doctor: { select: { name: true } },
+          therapist: { select: { name: true } }
+        }
       }
     },
   })
@@ -154,14 +160,29 @@ export async function processPayment(transactionId: string, data: {
     quantity: number
     unitPrice: number
   }[]
+  discountAmount?: number
 }) {
   const oldTx = await prisma.transaction.findUnique({ where: { id: transactionId } })
   if (!oldTx) throw new Error('Transaction not found')
 
   const subtotal = data.items.reduce((sum, item) => sum + item.unitPrice * item.quantity, 0)
+  const discountAmount = data.discountAmount ?? Number(oldTx.discountAmount || 0)
 
   // First, create the items (clean existing items if any)
   await prisma.transactionItem.deleteMany({ where: { transactionId } })
+
+  // Pre-fetch services to calculate fees
+  const serviceIds = data.items.filter(item => item.itemType === 'SERVICE' && item.serviceId).map(item => item.serviceId as string)
+  const services = await prisma.service.findMany({ where: { id: { in: serviceIds } } })
+  const serviceMap = new Map(services.map(s => [s.id, s]))
+
+  const calculateFee = (feeType: string | null | undefined, feeValue: number | null | undefined, unitPrice: number, quantity: number) => {
+    if (!feeType || !feeValue) return 0
+    if (feeType === 'PERCENTAGE') {
+      return (unitPrice * (Number(feeValue) / 100)) * quantity
+    }
+    return Number(feeValue) * quantity
+  }
 
   const transaction = await prisma.transaction.update({
     where: { id: transactionId },
@@ -170,17 +191,32 @@ export async function processPayment(transactionId: string, data: {
       paymentMethod: data.paymentMethod,
       paidAt: new Date(),
       subtotal,
-      totalAmount: subtotal - Number(oldTx.discountAmount || 0),
+      discountAmount,
+      totalAmount: Math.max(0, subtotal - discountAmount),
       items: {
-        create: data.items.map(item => ({
-          itemType: item.itemType,
-          serviceId: item.serviceId || null,
-          productId: item.productId || null,
-          itemName: item.itemName,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          subtotal: item.unitPrice * item.quantity,
-        })),
+        create: data.items.map(item => {
+          let doctorFee = 0
+          let therapistFee = 0
+          if (item.itemType === 'SERVICE' && item.serviceId) {
+            const service = serviceMap.get(item.serviceId)
+            if (service) {
+              doctorFee = calculateFee(service.doctorFeeType, Number(service.doctorFeeValue), item.unitPrice, item.quantity)
+              therapistFee = calculateFee(service.therapistFeeType, Number(service.therapistFeeValue), item.unitPrice, item.quantity)
+            }
+          }
+
+          return {
+            itemType: item.itemType,
+            serviceId: item.serviceId || null,
+            productId: item.productId || null,
+            itemName: item.itemName,
+            quantity: item.quantity,
+            unitPrice: item.unitPrice,
+            subtotal: item.unitPrice * item.quantity,
+            doctorFee,
+            therapistFee,
+          }
+        }),
       },
     },
     include: { items: true },
@@ -237,6 +273,7 @@ export async function processPayment(transactionId: string, data: {
         patientId: oldTx.patientId,
         transactionId: transaction.id,
         doctorId: latestQueue?.doctorId || null,
+        therapistId: latestQueue?.therapistId || null,
         visitDate: new Date(),
         anamnesis: null,
         diagnosis: null,
@@ -272,4 +309,74 @@ export async function getTransactionStats() {
     todayRevenue: Number(todayRevenue._sum.totalAmount || 0),
     todayTotalTransactions: todayPaid + todayPending,
   }
+}
+
+export async function updateTransaction(id: string, data: {
+  status?: string
+  paymentMethod?: string
+  totalAmount?: number
+  discountAmount?: number
+  notes?: string
+}) {
+  const transaction = await prisma.transaction.update({
+    where: { id },
+    data: {
+      status: data.status as any,
+      paymentMethod: data.paymentMethod as any,
+      totalAmount: data.totalAmount,
+      discountAmount: data.discountAmount,
+      notes: data.notes
+    }
+  })
+  
+  await prisma.auditLog.create({
+    data: {
+      action: 'UPDATE',
+      entityType: 'Transaction',
+      entityId: id,
+      oldValue: '',
+      newValue: JSON.stringify(data),
+    },
+  })
+
+  return JSON.parse(JSON.stringify(transaction))
+}
+
+export async function deleteTransaction(id: string) {
+  // Restore stock if deleting a transaction that had products
+  const tx = await prisma.transaction.findUnique({
+    where: { id },
+    include: { items: true }
+  })
+  
+  if (tx && tx.status === 'PAID') {
+    for (const item of tx.items) {
+      if (item.productId) {
+        await prisma.product.update({
+          where: { id: item.productId },
+          data: { stock: { increment: item.quantity } }
+        })
+      }
+    }
+  }
+
+  // Related items usually cascade delete, but if not we can delete explicitly
+  await prisma.transactionItem.deleteMany({ where: { transactionId: id } })
+  await prisma.medicalRecord.deleteMany({ where: { transactionId: id } })
+  
+  const deleted = await prisma.transaction.delete({
+    where: { id }
+  })
+
+  await prisma.auditLog.create({
+    data: {
+      action: 'DELETE',
+      entityType: 'Transaction',
+      entityId: id,
+      oldValue: JSON.stringify({ invoiceId: tx?.invoiceId }),
+      newValue: '',
+    },
+  })
+
+  return JSON.parse(JSON.stringify(deleted))
 }

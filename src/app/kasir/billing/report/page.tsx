@@ -31,11 +31,11 @@ function ReportContent() {
   const yesterdayStr = new Date(Date.now() - 86400000).toDateString();
 
   const filtered = transactions.filter(t => {
-      const tDate = new Date(t.createdAt).toDateString();
-      if (dateFilter === 'today') return tDate === todayStr;
-      if (dateFilter === 'yesterday') return tDate === yesterdayStr;
-      return true;
-    }).filter(t => 
+    const tDate = new Date(t.createdAt).toDateString();
+    if (dateFilter === 'today') return tDate === todayStr;
+    if (dateFilter === 'yesterday') return tDate === yesterdayStr;
+    return true;
+  }).filter(t =>
     t.invoiceId?.toLowerCase().includes(search.toLowerCase()) ||
     (t.patient?.name && t.patient.name.toLowerCase().includes(search.toLowerCase()))
   );
@@ -58,10 +58,10 @@ function ReportContent() {
 
   return (
     <div className="min-h-screen bg-white text-black print:bg-white print:m-0 print:p-0 font-sans" style={{ WebkitPrintColorAdjust: 'exact', colorAdjust: 'exact' } as React.CSSProperties}>
-      
+
       {/* Print Button (Hidden on Print) */}
       <div className="fixed bottom-10 right-10 z-50 print:hidden">
-        <button 
+        <button
           onClick={handlePrint}
           className="bg-black text-white p-4 rounded-full shadow-2xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
           title="Cetak Laporan Keuangan"
@@ -72,11 +72,11 @@ function ReportContent() {
 
       {/* A4 Document Container */}
       <div className="max-w-[1000px] mx-auto p-10 print:p-8 print:max-w-none print:w-full">
-        
+
         {/* Header */}
         <div className="text-center font-bold pb-2 border-b-[2px] border-black mb-1 leading-tight">
-          <h1 className="text-[20px] mb-1 text-black font-bold">Laporan Kasir & Transaksi</h1>
-          <p className="text-[14px] font-normal text-black">Praktik Dokter dr. Popi Novia</p>
+          <h1 className="text-[20px] mb-1 text-black font-bold">Laporan Transaksi Kaasir</h1>
+          <p className="text-[14px] font-normal text-black">Sunrise healthy Skin & Anti Aging</p>
           <p className="text-[12px] font-normal text-black mt-1">Dicetak pada: {new Date().toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
         </div>
         <div className="border-b-[1px] border-black mb-6"></div>
