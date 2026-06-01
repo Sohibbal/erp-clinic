@@ -126,7 +126,7 @@ export default function RekamMedisPrintPage({ params }: { params: Promise<{ noRM
                   const therapistName = matchedQueue?.therapist?.name;
                   
                   const handlers = [];
-                  if (doctorName) handlers.push(`Dr. ${doctorName.replace('Dr. ', '')}`);
+                  if (doctorName) handlers.push(doctorName);
                   if (therapistName) handlers.push(therapistName);
                   const handledBy = handlers.length > 0 ? handlers.join(' & ') : '-';
 

@@ -36,7 +36,7 @@ function ReportContent() {
 
     const hasDoctorFee = tx.items.some((i: any) => Number(i.doctorFee || 0) > 0);
     const hasTherapistFee = tx.items.some((i: any) => Number(i.therapistFee || 0) > 0);
-    
+
     if (employeeFilter === 'Dokter' && !hasDoctorFee) return false;
     if (employeeFilter === 'Terapis' && !hasTherapistFee) return false;
     if (employeeFilter === 'Dokter & Terapis' && (!hasDoctorFee || !hasTherapistFee)) return false;
@@ -54,19 +54,19 @@ function ReportContent() {
     const doctorName = tx.medicalRecords?.[0]?.doctor?.name || matchedQueue?.doctor?.name;
     const therapistName = tx.medicalRecords?.[0]?.therapist?.name || matchedQueue?.therapist?.name;
     const handlers = [];
-    if (doctorName) handlers.push(`Dr. ${doctorName.replace('Dr. ', '')}`);
+    if (doctorName) handlers.push(doctorName);
     if (therapistName) handlers.push(therapistName);
     const handledBy = handlers.length > 0 ? handlers.join(' & ') : '-';
 
     if (handlerNameFilter !== 'All' && handledBy !== handlerNameFilter) return false;
 
     if (search && !(tx.patient?.name?.toLowerCase() || '').includes(search.toLowerCase()) && !tx.invoiceId.toLowerCase().includes(search.toLowerCase())) return false;
-    
+
     const txDate = new Date(tx.createdAt);
     if (filterYear !== 'All' && String(txDate.getFullYear()) !== filterYear) return false;
     if (filterMonth !== 'All' && String(txDate.getMonth() + 1) !== filterMonth) return false;
     if (filterDay !== 'All' && String(txDate.getDate()) !== filterDay) return false;
-    
+
     return true;
   });
 
@@ -97,10 +97,10 @@ function ReportContent() {
 
   return (
     <div className="min-h-screen bg-white text-black print:bg-white print:m-0 print:p-0 font-sans" style={{ WebkitPrintColorAdjust: 'exact', colorAdjust: 'exact' } as React.CSSProperties}>
-      
+
       {/* Print Button (Hidden on Print) */}
       <div className="fixed bottom-10 right-10 z-50 print:hidden">
-        <button 
+        <button
           onClick={handlePrint}
           className="bg-black text-white p-4 rounded-full shadow-2xl hover:bg-gray-800 transition-all flex items-center justify-center gap-2"
           title="Cetak Laporan Penggajian"
@@ -111,7 +111,7 @@ function ReportContent() {
 
       {/* A4 Document Container */}
       <div className="max-w-[1000px] mx-auto p-10 print:p-8 print:max-w-none print:w-full">
-        
+
         {/* Header */}
         <div className="text-center font-bold pb-2 border-b-[2px] border-black mb-1 leading-tight">
           <h1 className="text-[20px] mb-1 text-black font-bold">Laporan Penggajian & Komisi Karyawan</h1>
@@ -157,7 +157,7 @@ function ReportContent() {
               const doctorName = tx.medicalRecords?.[0]?.doctor?.name || tx.patient?.queues?.[0]?.doctor?.name;
               const therapistName = tx.medicalRecords?.[0]?.therapist?.name || tx.patient?.queues?.[0]?.therapist?.name;
               const handlers = [];
-              if (doctorName) handlers.push(`Dr. ${doctorName.replace('Dr. ', '')}`);
+              if (doctorName) handlers.push(doctorName);
               if (therapistName) handlers.push(therapistName);
               const handledBy = handlers.length > 0 ? handlers.join(' & ') : '-';
 

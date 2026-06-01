@@ -69,7 +69,7 @@ export default function InvoicePage({ params }: { params: Promise<{ id: string }
   const doctorName = transaction.medicalRecords?.[0]?.doctor?.name || matchedQueue?.doctor?.name;
   const therapistName = matchedQueue?.therapist?.name;
   const handlers = [];
-  if (doctorName) handlers.push(`Dr. ${doctorName.replace('Dr. ', '')}`);
+  if (doctorName) handlers.push(`${doctorName.replace('Dr. ', '')}`);
   if (therapistName) handlers.push(therapistName);
   const handledBy = handlers.length > 0 ? handlers.join(' & ') : '-';
 

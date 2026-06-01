@@ -82,7 +82,7 @@ export default function OwnerPayrollPage() {
     const doctorName = tx.medicalRecords?.[0]?.doctor?.name || matchedQueue?.doctor?.name;
     const therapistName = tx.medicalRecords?.[0]?.therapist?.name || matchedQueue?.therapist?.name;
     const handlers = [];
-    if (doctorName) handlers.push(`Dr. ${doctorName.replace('Dr. ', '')}`);
+    if (doctorName) handlers.push(doctorName);
     if (therapistName) handlers.push(therapistName);
     const handledBy = handlers.length > 0 ? handlers.join(' & ') : '-';
 
@@ -112,7 +112,7 @@ export default function OwnerPayrollPage() {
       const doctorName = tx.medicalRecords?.[0]?.doctor?.name || matchedQueue?.doctor?.name;
       const therapistName = tx.medicalRecords?.[0]?.therapist?.name || matchedQueue?.therapist?.name;
       const arr = [];
-      if (doctorName) arr.push(`Dr. ${doctorName.replace('Dr. ', '')}`);
+      if (doctorName) arr.push(doctorName);
       if (therapistName) arr.push(therapistName);
       if (arr.length > 0) {
         handlers.add(arr.join(' & '));
@@ -329,7 +329,7 @@ export default function OwnerPayrollPage() {
               const therapistName = tx.medicalRecords?.[0]?.therapist?.name || matchedQueue?.therapist?.name;
               
               const handlers = [];
-              if (doctorName) handlers.push(`Dr. ${doctorName.replace('Dr. ', '')}`);
+              if (doctorName) handlers.push(doctorName);
               if (therapistName) handlers.push(therapistName);
               const handledBy = handlers.length > 0 ? handlers.join(' & ') : '-';
 

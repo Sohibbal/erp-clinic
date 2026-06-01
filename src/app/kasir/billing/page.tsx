@@ -306,7 +306,7 @@ export default function BillingPage() {
               const therapistName = matchedQueue?.therapist?.name;
               
               const handlers = [];
-              if (doctorName) handlers.push(`Dr. ${doctorName.replace('Dr. ', '')}`);
+              if (doctorName) handlers.push(doctorName);
               if (therapistName) handlers.push(therapistName);
               const handledBy = servicesList.length === 0 ? 'Resepsionis' : (handlers.length > 0 ? handlers.join(' & ') : '-');
               
